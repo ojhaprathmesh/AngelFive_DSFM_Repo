@@ -1,0 +1,46 @@
+{
+  "name": "angelfive-dsfm-repo",
+  "version": "1.0.0",
+  "description": "AngelOne Dashboard Replica with DSFM Analytics - Full Stack Financial Dashboard",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "ml-service",
+    "scripts"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\" \"pnpm --filter ml-service dev\" --names \"backend,frontend,ml-service\" --prefix-colors \"blue,green,yellow\"",
+    "start": "concurrently \"pnpm --filter backend start\" \"pnpm --filter frontend start\" \"pnpm --filter ml-service start\" --names \"backend,frontend,ml-service\" --prefix-colors \"blue,green,yellow\"",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "test": "pnpm --filter backend test && pnpm --filter ml-service test",
+    "clean": "pnpm --filter backend clean && pnpm --filter frontend clean && pnpm --filter ml-service clean",
+    "install:all": "pnpm install",
+    "setup": "pnpm install:all && pnpm --filter backend install && pnpm --filter frontend install && pnpm --filter ml-service install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "dotenv": "^16.3.1",
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.0.2",
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "keywords": [
+    "financial-dashboard",
+    "trading",
+    "machine-learning",
+    "next.js",
+    "express",
+    "flask",
+    "typescript",
+    "monorepo"
+  ],
+  "author": "AngelFive Team",
+  "license": "MIT"
+}

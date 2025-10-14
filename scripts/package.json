@@ -1,0 +1,20 @@
+{
+  "name": "@angelfive/scripts",
+  "version": "1.0.0",
+  "description": "Shell scripts and automation tools for AngelFive DSFM project",
+  "scripts": {
+    "start-all": "powershell -ExecutionPolicy Bypass -File ./start-all.ps1",
+    "start-dev": "powershell -ExecutionPolicy Bypass -File ./start-dev.ps1",
+    "stop-all": "powershell -ExecutionPolicy Bypass -File ./stop-all.ps1",
+    "setup": "powershell -ExecutionPolicy Bypass -File ./setup.ps1",
+    "health-check": "powershell -ExecutionPolicy Bypass -File ./health-check.ps1"
+  },
+  "keywords": [
+    "scripts",
+    "automation",
+    "powershell",
+    "development"
+  ],
+  "author": "AngelFive Team",
+  "license": "MIT"
+}
