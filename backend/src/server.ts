@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { Express } from 'express';
+import authRoutes from './routes/auth';
 
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
@@ -13,6 +14,9 @@ app.use(cors()); // Enable CORS
 app.use(morgan('combined')); // Logging
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Routes
+app.use('/api/auth', authRoutes);
 
 // Basic routes
 app.get('/', (req, res) => {
