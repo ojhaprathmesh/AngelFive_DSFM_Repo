@@ -26,21 +26,17 @@ import {
 // Firebase configuration
 const firebaseConfig = {
   apiKey:
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
-    "AIzaSyDWsN-NERF10xBarTppHk6EyrvoIdG4Rqg",
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain:
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
-    "angelfive-dsfm-dashboard.firebaseapp.com",
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId:
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "angelfive-dsfm-dashboard",
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket:
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-    "angelfive-dsfm-dashboard.firebasestorage.app",
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId:
-    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "957097979875",
+    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId:
-    process.env.NEXT_PUBLIC_FIREBASE_APP_ID ||
-    "1:957097979875:web:137e9373cbf89ee28d7ad6",
+    process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
@@ -307,3 +303,6 @@ export class FirebaseClientAuth {
 // Export Firebase services and auth instance
 export { auth, firestore };
 export const firebaseClientAuth = FirebaseClientAuth.getInstance();
+
+// Export auth service for easier access
+export const authService = firebaseClientAuth;

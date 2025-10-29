@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables with absolute paths
+const backendDir = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(backendDir, '.env.local') });
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -7,7 +13,7 @@ import { Express } from "express";
 import authRoutes from "./routes/auth";
 
 const app: Express = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(helmet()); // Security headers

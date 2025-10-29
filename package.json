@@ -19,18 +19,18 @@
     "setup": "pnpm install:all && pnpm --filter backend install && pnpm --filter frontend install && pnpm --filter ml-service install"
   },
   "devDependencies": {
+    "@types/node": "^20.10.5",
     "concurrently": "^8.2.2",
-    "dotenv": "^16.3.1",
     "cross-env": "^7.0.3",
+    "dotenv": "^16.3.1",
     "nodemon": "^3.0.2",
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.5"
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.15.0",
+  "packageManager": "pnpm@10.18.3",
   "keywords": [
     "financial-dashboard",
     "trading",

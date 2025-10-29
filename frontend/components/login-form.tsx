@@ -1,107 +1,176 @@
 "use client";
 
-import * as React from "react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/auth-context";
+import { authService } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSeparator,
-} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { handleFormSubmission, extractFormData } from "@/lib/form-handler";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 
-export function LoginForm({
-  className,
-  ...props
-}: React.ComponentProps<"form">) {
+export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { refreshUser } = useAuth();
+
+  // Show message from URL params (e.g., from logout or redirect) only once
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message) {
+      toast.info(message);
+      // Clear the message from URL to prevent showing it again
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('message');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (isSubmitting) return;
-
     setIsSubmitting(true);
 
-    // Store form reference before async operations
-    const formElement = event.currentTarget;
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
 
     try {
-      const formData = extractFormData(formElement, "LOGIN");
-      const success = await handleFormSubmission(formData);
+      const result = await authService.signIn(email, password);
 
-      if (success && formElement) {
-        // Reset form on successful submission
-        formElement.reset();
+      if (result.success && result.user) {
+        toast.success("Successfully logged in!");
+        
+        // Refresh user data in context
+        await refreshUser();
+        
+        // Redirect to dashboard
+        router.push("/dashboard");
+      } else {
+        toast.error(result.error || "Login failed");
       }
     } catch (error) {
-      console.error("Form submission error:", error);
+      console.error("Login error:", error);
+      toast.error("An unexpected error occurred");
     } finally {
-      // Always reset submitting state, regardless of success or failure
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form
-      className={cn("flex flex-col gap-6", className)}
-      {...props}
-      onSubmit={handleSubmit}
-    >
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold">Login to your account</h1>
-          <p className="text-muted-foreground text-sm text-balance">
-            Enter your email below to login to your account
-          </p>
-        </div>
+    <div className="w-full max-w-md space-y-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Welcome back
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Sign in to your account to continue
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Field>
           <FieldLabel htmlFor="email">Email</FieldLabel>
           <Input
             id="email"
             name="email"
             type="email"
-            placeholder="m@example.com"
+            autoComplete="email"
             required
+            aria-describedby="email-description"
+            className="w-full"
           />
         </Field>
+
         <Field>
-          <div className="flex items-center">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            aria-describedby="password-description"
+            className="w-full"
+          />
+        </Field>
+
+        <div className="flex items-center justify-between">
+          <div className="text-sm">
             <a
-              href="#"
-              className="ml-auto text-sm underline-offset-4 hover:underline"
+              href="/forgot-password"
+              className="font-medium text-primary hover:text-primary/80"
             >
               Forgot your password?
             </a>
           </div>
-          <Input id="password" name="password" type="password" required />
-        </Field>
-        <Field>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Logging in..." : "Login"}
-          </Button>
-        </Field>
-        <FieldSeparator>Or continue with</FieldSeparator>
-        <Field>
-          <Button variant="outline" type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-              <path d="M24.7,20.5v7.6H35.6a10.9,10.9,0,0,1-10.9,8,12.1,12.1,0,1,1,7.9-21.3l5.6-5.6A20,20,0,1,0,24.7,44c16.8,0,20.5-15.7,18.9-23.5Z" />
-            </svg>
-            Login with Google
-          </Button>
-          <FieldDescription className="text-center">
-            Don&apos;t have an account?{" "}
-            <a href="/signup" className="underline underline-offset-4">
-              Sign up
-            </a>
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
-    </form>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full"
+        >
+          {isSubmitting ? (
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Signing in...
+            </div>
+          ) : (
+            "Sign in"
+          )}
+        </Button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+              Or continue with
+            </span>
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={isSubmitting}
+        >
+          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+            <path
+              fill="currentColor"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            />
+            <path
+              fill="currentColor"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+            />
+          </svg>
+          Sign in with Google
+        </Button>
+      </form>
+
+      <div className="text-center">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Don't have an account?{" "}
+          <a
+            href="/signup"
+            className="font-medium text-primary hover:text-primary/80"
+          >
+            Sign up
+          </a>
+        </p>
+      </div>
+    </div>
   );
 }

@@ -117,6 +117,76 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
+}
+
+@layer utilities {
+  /* Responsive Typography Scale */
+  .text-responsive-xs { @apply text-xs sm:text-sm; }
+  .text-responsive-sm { @apply text-sm sm:text-base; }
+  .text-responsive-base { @apply text-base sm:text-lg; }
+  .text-responsive-lg { @apply text-lg sm:text-xl; }
+  .text-responsive-xl { @apply text-xl sm:text-2xl; }
+  .text-responsive-2xl { @apply text-2xl sm:text-3xl; }
+  .text-responsive-3xl { @apply text-3xl sm:text-4xl lg:text-5xl; }
+  
+  /* Font Weight Mappings */
+  .font-regular { font-weight: 400; }
+  .font-medium { font-weight: 500; }
+  .font-bold { font-weight: 700; }
+  
+  /* Mobile-first Container Utilities */
+  .container-responsive {
+    @apply w-full mx-auto px-4 sm:px-6 lg:px-8;
+    max-width: 100%;
+  }
+  
+  @screen sm {
+    .container-responsive { max-width: 640px; }
+  }
+  
+  @screen md {
+    .container-responsive { max-width: 768px; }
+  }
+  
+  @screen lg {
+    .container-responsive { max-width: 1024px; }
+  }
+  
+  @screen xl {
+    .container-responsive { max-width: 1280px; }
+  }
+  
+  @screen 2xl {
+    .container-responsive { max-width: 1536px; }
+  }
+  
+  /* Mobile Navigation Utilities */
+  .mobile-menu-enter {
+    @apply opacity-0 scale-95 transform;
+  }
+  
+  .mobile-menu-enter-active {
+    @apply opacity-100 scale-100 transform transition-all duration-200 ease-out;
+  }
+  
+  .mobile-menu-exit {
+    @apply opacity-100 scale-100 transform;
+  }
+  
+  .mobile-menu-exit-active {
+    @apply opacity-0 scale-95 transform transition-all duration-150 ease-in;
+  }
+  
+  /* Touch-friendly Interactive Elements */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+  
+  /* Safe Area Utilities for Mobile */
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-left { padding-left: env(safe-area-inset-left); }
+  .safe-right { padding-right: env(safe-area-inset-right); }
 }
