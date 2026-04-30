@@ -34,15 +34,6 @@ export interface MarketData {
     totSellQuan?: number;
 }
 
-interface InstrumentEntry {
-    token: string | number;
-    symbol?: string;
-    name?: string;
-    tradingsymbol?: string;
-    instrumenttype?: string;
-    exch_seg?: string;
-}
-
 const INDEX_TOKEN_MAP: Record<string, { exchange: string; token: string }> = {
     "BSE:SENSEX": { exchange: "BSE", token: "99919000" },
     "NSE:NIFTY": { exchange: "NSE", token: "99926000" },
@@ -215,36 +206,8 @@ class MarketDataService {
                 return { exchange: json.exchange, token: String(json.token) };
             }
         } catch {
-            // Fallback: try instrument master (public URL, no credentials)
-            try {
-                const resp = await fetch(
-                    "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json",
-                );
-                if (resp.ok) {
-                    const instruments: InstrumentEntry[] = await resp.json();
-                    const upper = symbol.toUpperCase();
-                    const found = instruments.find((i) => {
-                        const candidates = [
-                            i.symbol?.toUpperCase(),
-                            i.name?.toUpperCase(),
-                            i.tradingsymbol?.toUpperCase(),
-                        ];
-                        return candidates.some(
-                            (c) =>
-                                c === upper ||
-                                c === `${upper}-EQ` ||
-                                c?.startsWith(`${upper}-`),
-                        );
-                    });
-                    if (found?.token) {
-                        return {
-                            exchange: found.exch_seg?.toUpperCase() || "NSE",
-                            token: String(found.token),
-                        };
-                    }
-                }
-            } catch {
-            }
+            // Intentionally no direct SmartAPI fallback on frontend.
+            // Frontend must resolve symbol tokens only via backend routes.
         }
         return null;
     }

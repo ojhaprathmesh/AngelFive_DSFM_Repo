@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AngelFive DSFM Dashboard Frontend
 
-## Getting Started
+AngelFive DSFM is a full-stack analytics platform designed to democratize advanced Dynamic Statistical Financial Modeling (DSFM) workflows.  
+This frontend provides an accessible, intuitive interface that helps users explore forecasts, volatility models, portfolio optimization, and sentiment intelligence without needing to build the ML pipeline themselves.
 
-First, run the development server:
+## Vision
+
+The project aims to make institutional-grade quantitative analytics understandable and usable for a wider audience, including students, retail analysts, and independent researchers.
+
+## Tech Stack
+
+- **Frontend:** Next.js, React, TypeScript
+- **Runtime & Tooling:** Node.js, npm/pnpm
+- **Backend API:** Flask (`ml-service`) for DSFM model endpoints
+- **Deep Learning:** PyTorch (LSTM time-series inference)
+- **NLP:** HuggingFace Transformers (FinBERT sentiment inference)
+- **Statistical Modeling:** ARIMA and GARCH (Python scientific stack)
+
+## Project Preview
+
+- [Insert Screenshot Here]
+- [Insert Architecture Diagram Here]
+
+## Prerequisites
+
+- Node.js 18+ (recommended)
+- npm or pnpm
+- Python 3.10+ for `ml-service`
+
+## Local Setup
+
+### 1) Clone and install frontend dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+### 2) Configure environment variables
+
+Create a `.env.local` file in `frontend/` and configure required values (example):
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+### 3) Start the frontend
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Backend (`ml-service`) Quick Start
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+From the repository root:
 
-## Learn More
+```bash
+cd ml-service
+pip install -r requirements.txt
+python scripts/init_lstm_weights.py
+python app.py
+```
 
-To learn more about Next.js, take a look at the following resources:
+Backend defaults to `http://localhost:8000`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key Capabilities Exposed in UI
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- DSFM diagnostics (ADF, ACF/PACF)
+- Forecasting with ARIMA, GARCH, and PyTorch LSTM
+- Portfolio analytics (MPT and Black-Litterman)
+- Financial sentiment analysis via FinBERT and rule-based engine
 
-## Deploy on Vercel
+## Production Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- FinBERT model weights are downloaded from HuggingFace on first run.
+- Ensure outbound internet access is available at startup for initial model pull.
+- For repeat deployments, pre-warm model caches or bake artifacts into image layers.

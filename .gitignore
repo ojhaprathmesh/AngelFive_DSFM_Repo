@@ -2,10 +2,6 @@
 **.vscode/
 **.idea/
 
-# libraries
-**node_modules
-**venv**
-
 # builds
 **.next
 
@@ -13,8 +9,13 @@
 scripts
 
 # typescript
+**node_modules
 **.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+**venv/
 
 # envs
 **.env**

@@ -13,8 +13,8 @@ interface FirebaseConfig {
 
 const resolveFirebaseConfig = (): FirebaseConfig => {
     const privateKey = ENV.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n");
-    console.log("[Firebase] Private key starts with:", privateKey.substring(0, 40));
-    console.log("[Firebase] Private key ends with:", privateKey.slice(-40));
+    console.log("[Firebase] Private key starts with:\n", privateKey.substring(0, 56), "\n");
+    console.log("[Firebase] Private key ends with:", privateKey.slice(-52));
     return {
         projectId: ENV.FIREBASE_PROJECT_ID,
         clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
@@ -40,7 +40,7 @@ try {
             projectId: config.projectId,
         });
 
-        console.log("✅ Firebase Admin SDK initialized");
+        console.log("✅ Firebase Admin SDK initialized\n");
     } else {
         firebaseApp = getApps()[0];
         console.log("✅ Firebase Admin SDK already initialized");

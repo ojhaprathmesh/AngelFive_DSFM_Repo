@@ -21,6 +21,9 @@ interface InstrumentEntry {
     tradingSymbol?: string;
     instrumentType?: string;
     exchangeSeg?: string;
+    tradingsymbol?: string;
+    instrumenttype?: string;
+    exch_seg?: string;
 }
 
 interface SmartAPICandleResponse {
@@ -73,11 +76,13 @@ async function getSymbolToken(
     const upper = symbol.toUpperCase();
     const exchangeUpper = exchange.toUpperCase();
     const match = instruments.find((item) => {
-        if (item.exchangeSeg?.toUpperCase() !== exchangeUpper) return false;
+        const entryExchange = String(item.exchangeSeg || item.exch_seg || "").toUpperCase();
+        if (entryExchange !== exchangeUpper) return false;
         const candidates = [
             item.symbol?.toUpperCase(),
             item.name?.toUpperCase(),
             item.tradingSymbol?.toUpperCase(),
+            item.tradingsymbol?.toUpperCase(),
         ];
         return candidates.some(
             (candidate) => candidate === upper || candidate === `${upper}-EQ`,
@@ -1599,6 +1604,19 @@ router.post(
                 }
             } catch (e: any) {
                 console.error("ML service FinBERT error:", e.message);
+                const msg = String(e?.message || "");
+                if (
+                    msg.includes("ML service unavailable after") ||
+                    msg.includes("fetch failed") ||
+                    msg.includes("socket hang up")
+                ) {
+                    res.status(503).json({
+                        error: "finbert_warming_up",
+                        message:
+                            "FinBERT model is warming up in the ML service. Please retry in 30-60 seconds.",
+                    });
+                    return;
+                }
             }
 
             res.status(503).json({
