@@ -22,25 +22,25 @@ export default function DSFMPage() {
             </div>
 
             <Tabs defaultValue="returns" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="returns" className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
+                <TabsList className="flex w-full flex-wrap h-auto gap-1 p-1">
+                    <TabsTrigger value="returns" className="flex items-center gap-2 flex-1 min-w-fit">
+                        <TrendingUp className="h-4 w-4 shrink-0" />
                         Returns Analysis
                     </TabsTrigger>
-                    <TabsTrigger value="correlation" className="flex items-center gap-2">
-                        <BarChart3 className="h-4 w-4" />
+                    <TabsTrigger value="correlation" className="flex items-center gap-2 flex-1 min-w-fit">
+                        <BarChart3 className="h-4 w-4 shrink-0" />
                         Correlation
                     </TabsTrigger>
-                    <TabsTrigger value="portfolio" className="flex items-center gap-2">
-                        <PieChart className="h-4 w-4" />
+                    <TabsTrigger value="portfolio" className="flex items-center gap-2 flex-1 min-w-fit">
+                        <PieChart className="h-4 w-4 shrink-0" />
                         Portfolio Optimization
                     </TabsTrigger>
-                    <TabsTrigger value="network" className="flex items-center gap-2">
-                        <Network className="h-4 w-4" />
+                    <TabsTrigger value="network" className="flex items-center gap-2 flex-1 min-w-fit">
+                        <Network className="h-4 w-4 shrink-0" />
                         Network Analysis
                     </TabsTrigger>
-                    <TabsTrigger value="pca" className="flex items-center gap-2">
-                        <Layers className="h-4 w-4" />
+                    <TabsTrigger value="pca" className="flex items-center gap-2 flex-1 min-w-fit">
+                        <Layers className="h-4 w-4 shrink-0" />
                         PCA
                     </TabsTrigger>
                 </TabsList>

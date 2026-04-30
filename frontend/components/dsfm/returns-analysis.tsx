@@ -1,7 +1,7 @@
 "use client";
 
 import { AreaSeries, ColorType, createChart, HistogramSeries, LineSeries, Time, } from "lightweight-charts";
-import { Activity, BarChart3, CheckCircle, Info, TrendingDown, TrendingUp, XCircle, } from "lucide-react";
+import { Activity, BarChart3, CheckCircle, Info, TrendingDown, TrendingUp, XCircle, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -666,14 +666,13 @@ export function ReturnsAnalysis() {
 
                             {/* Calculation Explanations */}
                             {returnsData.calculations && (
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg">
-                                            How These Metrics Are Calculated
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3">
-                                        <div className="space-y-2">
+                                <details className="group border rounded-lg bg-card text-card-foreground shadow-sm [&_summary::-webkit-details-marker]:hidden">
+                                    <summary className="flex cursor-pointer items-center justify-between p-6 font-semibold text-lg hover:bg-muted/50 transition-colors list-none">
+                                        How These Metrics Are Calculated
+                                        <ChevronDown className="h-5 w-5 transition-transform duration-200 group-open:rotate-180" />
+                                    </summary>
+                                    <div className="p-6 pt-0 border-t mt-2 space-y-3">
+                                        <div className="space-y-2 pt-4">
                                             <div className="flex items-start gap-2">
                                                 <Info className="h-5 w-5 text-blue-500 mt-0.5" />
                                                 <div>
@@ -727,8 +726,8 @@ export function ReturnsAnalysis() {
                                                 </div>
                                             </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </details>
                             )}
 
                             <Tabs defaultValue="charts" className="w-full">

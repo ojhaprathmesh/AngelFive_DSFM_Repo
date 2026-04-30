@@ -16,7 +16,7 @@ export default function DashboardLayout({
     const pathname = usePathname();
     const isWatchlist = pathname === "/dashboard/watchlist";
 
-    // Redirect to login if not authenticated
+    // Redirect to login page if not authenticated
     useEffect(() => {
         if (!loading && !user) {
             router.push("/login?message=Please log in to access the dashboard");

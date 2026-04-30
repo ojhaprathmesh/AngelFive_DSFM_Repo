@@ -122,6 +122,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Reserve permanent space for the scrollbar gutter.
+       Prevents the 15px layout shift when scrollbar appears/disappears on tab switch. */
+    scrollbar-gutter: stable;
+  }
   body {
     @apply bg-background text-foreground font-sans;
   }

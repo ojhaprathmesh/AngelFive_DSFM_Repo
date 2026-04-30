@@ -136,13 +136,6 @@ class MarketDataService {
         );
     }
 
-    public getAllFallbackData(): MarketData[] {
-        return [
-            this.getFallbackData("BSE:SENSEX"),
-            this.getFallbackData("NSE:NIFTY"),
-        ];
-    }
-
     async getMarketData(symbol: string): Promise<MarketData> {
         const cachedData = this.getCachedData(symbol);
         if (cachedData) return cachedData;
@@ -176,22 +169,6 @@ class MarketDataService {
         return this.getMarketData("NSE:NIFTY");
     }
 
-    async getBankNiftyData(): Promise<MarketData> {
-        return this.getMarketData("NSE:BANKNIFTY");
-    }
-
-    async getIndiaVixData(): Promise<MarketData> {
-        return this.getMarketData("NSE:INDIAVIX");
-    }
-
-    async getFinniftyData(): Promise<MarketData> {
-        return this.getMarketData("NSE:FINNIFTY");
-    }
-
-    async getSBINData(): Promise<MarketData> {
-        return this.getMarketData("SBIN-EQ");
-    }
-
     async getSymbolToken(
         symbol: string,
     ): Promise<{ exchange: string; token: string } | null> {
@@ -210,30 +187,6 @@ class MarketDataService {
             // Frontend must resolve symbol tokens only via backend routes.
         }
         return null;
-    }
-
-    async getQuotesByTokens(
-        exchange: string,
-        tokens: string[],
-    ): Promise<MarketData[]> {
-        if (tokens.length === 0) return [];
-
-        try {
-            const exchangeTokens = { [exchange]: tokens };
-            const res = await fetch(getApiUrl("/smartapi/quote"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ exchangeTokens }),
-            });
-            const json = await res.json();
-
-            if (json.quotes?.length > 0) {
-                return json.quotes.map((q: any) => this.mapQuote(q));
-            }
-        } catch (err) {
-            console.error("Error fetching quotes by tokens:", err);
-        }
-        return [];
     }
 
     async getCandleData(
@@ -261,27 +214,6 @@ class MarketDataService {
             console.error("Error fetching candle data:", err);
         }
         return [];
-    }
-
-    async getMultipleQuotes(symbols: string[]): Promise<MarketData[]> {
-        if (symbols.length === 0) return [];
-
-        try {
-            const res = await fetch(getApiUrl("/smartapi/quote"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ symbols }),
-            });
-            const json = await res.json();
-
-            if (json.quotes?.length > 0) {
-                return json.quotes.map((q: any) => this.mapQuote(q));
-            }
-        } catch (err) {
-            console.error("Error fetching multiple quotes:", err);
-        }
-
-        return symbols.map((s) => this.getFallbackData(s));
     }
 
     async getMarketDataWithStatus(symbol: string): Promise<{
@@ -383,10 +315,6 @@ class MarketDataService {
         this.refreshIntervals.clear();
     }
 
-    getLastUpdateTime(symbol: string): Date | null {
-        return this.lastUpdateTimes.get(symbol) || null;
-    }
-
     isDataFresh(lastUpdated: Date | null, maxAgeMs: number = 60000): boolean {
         if (!lastUpdated) return false;
         return Date.now() - lastUpdated.getTime() < maxAgeMs;
@@ -399,12 +327,6 @@ class MarketDataService {
         }).format(price);
     }
 
-    formatChange(change: number, changePercent: number): string {
-        const sign = change >= 0 ? "+" : "";
-        const formattedChange = this.formatPrice(Math.abs(change));
-        const formattedPercent = Math.abs(changePercent).toFixed(2);
-        return `${sign}${formattedChange} (${sign}${formattedPercent}%)`;
-    }
 }
 
 export const marketDataService = new MarketDataService();

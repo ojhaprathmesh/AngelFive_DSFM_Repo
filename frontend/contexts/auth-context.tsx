@@ -67,7 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setSessionTimeout(null);
             setLastActivity(null);
 
-            // Redirect to login
+            // Redirect to log in
             window.location.href = "/login?message=Successfully logged out";
         } catch (error) {
             console.error("Sign out error:", error);

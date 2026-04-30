@@ -188,19 +188,40 @@ export async function fetchSmartApiCandles(
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
+                    // SmartAPI expects these exact field names (per Historical API docs):
+                    // exchange, symboltoken, interval, fromdate, todate
                     exchange,
-                    symbolToken: symbolToken,
+                    symboltoken: symbolToken,
                     interval,
-                    fromDate: fromDate,
-                    toDate: toDate,
+                    fromdate: fromDate,
+                    todate: toDate,
                 }),
             },
         );
 
-        if (!response.ok) return [];
+        if (!response.ok) {
+            const errText = await response.text().catch(() => "");
+            console.error(
+                "[SmartAPI] Candle fetch HTTP error:",
+                response.status,
+                response.statusText,
+                errText.slice(0, 500),
+            );
+            return [];
+        }
 
         const data: any = await response.json();
-        if (!data.status || !Array.isArray(data.data)) return [];
+        if (!data.status || !Array.isArray(data.data)) {
+            console.error(
+                "[SmartAPI] Candle fetch returned invalid payload:",
+                JSON.stringify(
+                    { status: data?.status, message: data?.message, errorCode: data?.errorCode },
+                    null,
+                    2,
+                ),
+            );
+            return [];
+        }
 
         return data.data;
     } catch (error) {

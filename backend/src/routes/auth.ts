@@ -107,7 +107,9 @@ router.post("/login", loginValidation, async (req: Request, res: Response): Prom
 
         // Create custom token for frontend to use with signInWithCustomToken
         const customToken = await getAuth().createCustomToken(uid);
-        const userProfile = await authService.getUserProfile(uid);
+        // Record last-login + return the latest profile
+        const signInResult = await authService.signInUser(email);
+        const userProfile = signInResult.success ? signInResult.user : await authService.getUserProfile(uid);
 
         return res.json({
             status: "success",
