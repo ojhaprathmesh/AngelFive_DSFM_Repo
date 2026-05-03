@@ -2,7 +2,7 @@ from threading import Lock
 
 import torch
 
-from ml_service.models.model_loader import get_finbert
+from src.models.model_loader import get_finbert
 
 
 LABEL_MAP = {

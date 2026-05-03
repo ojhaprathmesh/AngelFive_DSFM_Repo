@@ -2,7 +2,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
-from ml_service.services.dsfm_service import (
+from src.services.dsfm_service import (
     acf_pacf,
     adf_test,
     arima_forecast,
@@ -12,7 +12,7 @@ from ml_service.services.dsfm_service import (
     lstm_forecast,
     mpt_optimize,
 )
-from ml_service.services.sentiment_service import run_finbert_sentiment, run_rule_based_sentiment
+from src.services.sentiment_service import run_finbert_sentiment, run_rule_based_sentiment
 
 
 logger = logging.getLogger(__name__)

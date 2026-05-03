@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from ml_service.services.forecast_service import run_forecast
+from src.services.forecast_service import run_forecast
 
 
 forecast_bp = Blueprint("forecast", __name__)

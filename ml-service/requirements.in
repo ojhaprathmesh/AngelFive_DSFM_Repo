@@ -19,3 +19,4 @@ safetensors
 
 # Utilities (keep only if used)
 requests
+psutil

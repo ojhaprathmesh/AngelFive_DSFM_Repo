@@ -70,4 +70,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: uv pip install --system -r requirements.txt pylint
-      - run: python -m pylint ml_service/ --fail-under=7.0
+      - run: python -m pylint src/ --fail-under=7.0

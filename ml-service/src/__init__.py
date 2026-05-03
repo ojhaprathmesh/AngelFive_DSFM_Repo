@@ -9,12 +9,12 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from ml_service.config import Config
-from ml_service.routes.dsfm_routes import dsfm_bp
-from ml_service.routes.forecast_routes import forecast_bp
-from ml_service.routes.health_routes import health_bp
-from ml_service.routes.model_routes import models_bp
-from ml_service.services.sentiment_service import warmup_finbert_model
+from src.config import Config
+from src.routes.dsfm_routes import dsfm_bp
+from src.routes.forecast_routes import forecast_bp
+from src.routes.health_routes import health_bp
+from src.routes.model_routes import models_bp
+from src.services.sentiment_service import warmup_finbert_model
 
 
 load_dotenv()

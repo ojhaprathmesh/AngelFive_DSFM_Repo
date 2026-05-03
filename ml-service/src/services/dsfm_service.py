@@ -5,8 +5,8 @@ from scipy.optimize import minimize
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import acf, adfuller, pacf
 
-from ml_service.models.model_loader import get_lstm_model
-from ml_service.utils.serialization import params_to_dict
+from src.models.model_loader import get_lstm_model
+from src.utils.serialization import params_to_dict
 
 
 def adf_test(returns):

@@ -1,0 +1,23 @@
+[MASTER]
+ignore=CVS
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    broad-exception-caught,
+    global-statement,
+    cell-var-from-loop,
+    invalid-name,
+    raise-missing-from,
+    too-few-public-methods
+
+[FORMAT]
+max-line-length=150
+
+[DESIGN]
+max-locals=40
+max-statements=100
+max-branches=20
+max-attributes=15

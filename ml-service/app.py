@@ -3,8 +3,8 @@
 
 import logging
 
-from ml_service import create_app
-from ml_service.config import Config
+from src import create_app
+from src.config import Config
 
 
 app = create_app()

@@ -5,8 +5,8 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from safetensors.torch import load_file
 
-from ml_service.config import Config
-from ml_service.models.lstm_model import TimeSeriesLSTM
+from src.config import Config
+from src.models.lstm_model import TimeSeriesLSTM
 
 
 _finbert_lock = Lock()
@@ -38,7 +38,7 @@ def get_lstm_model():
             if _lstm_model is None:
                 model = TimeSeriesLSTM()
                 model_path = Path(Config.LSTM_MODEL_PATH)
-                
+
                 # Check for safetensors first (preferred)
                 st_path = model_path.with_suffix(".safetensors")
                 if st_path.exists():
@@ -58,7 +58,7 @@ def get_lstm_model():
                     raise FileNotFoundError(
                         f"LSTM weights not found at '{model_path}'. Run scripts/init_lstm_weights.py first."
                     )
-                    
+
                 model.eval()
                 _lstm_model = model
     return _lstm_model

@@ -1,4 +1,4 @@
-from ml_service.services.dsfm_service import arima_forecast, garch_forecast, lstm_forecast
+from src.services.dsfm_service import arima_forecast, garch_forecast, lstm_forecast
 
 
 SUPPORTED_FORECAST_MODELS = {"ARIMA", "GARCH", "LSTM"}

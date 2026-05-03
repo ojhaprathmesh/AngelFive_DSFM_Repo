@@ -4,8 +4,8 @@ from datetime import datetime
 import psutil
 from flask import Blueprint, jsonify
 
-from ml_service.config import Config
-from ml_service.services.sentiment_service import get_finbert_warmup_status
+from src.config import Config
+from src.services.sentiment_service import get_finbert_warmup_status
 
 
 health_bp = Blueprint("health", __name__)
