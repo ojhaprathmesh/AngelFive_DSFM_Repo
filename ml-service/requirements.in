@@ -1,0 +1,21 @@
+# Backend
+flask
+flask-cors
+gunicorn
+python-dotenv
+
+# Data science
+numpy
+pandas
+scipy
+statsmodels
+arch
+
+# ML / NLP
+torch
+transformers
+huggingface_hub
+safetensors
+
+# Utilities (keep only if used)
+requests
