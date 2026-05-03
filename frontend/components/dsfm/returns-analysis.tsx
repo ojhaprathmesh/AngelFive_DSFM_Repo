@@ -1,7 +1,7 @@
 "use client";
 
 import { AreaSeries, ColorType, createChart, HistogramSeries, LineSeries, Time, } from "lightweight-charts";
-import { Activity, BarChart3, CheckCircle, Info, TrendingDown, TrendingUp, XCircle, ChevronDown } from "lucide-react";
+import { Activity, BarChart3, CheckCircle, ChevronDown,Info, TrendingDown, TrendingUp, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";

@@ -595,6 +595,7 @@ export function WatchlistChart({
         timeframe,
         showEMA,
         updateEMA,
+        applyVisibleRangeByTimeframe,
     ]);
 
     // Trigger full reload when timeframe changes
