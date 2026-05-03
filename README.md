@@ -1,9 +1,12 @@
 # 🏦 AngelFive — DSFM Analytics Dashboard
 
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black?style=flat-square\&logo=next.js)](https://nextjs.org/)
-[![Express](https://img.shields.io/badge/Backend-Express.js-blue?style=flat-square\&logo=express)](https://expressjs.com/)
-[![Flask](https://img.shields.io/badge/ML--Service-Flask-lightgrey?style=flat-square\&logo=flask)](https://flask.palletsprojects.com/)
-[![PyTorch](https://img.shields.io/badge/ML-PyTorch%20%7C%20HuggingFace-EE4C2C?style=flat-square\&logo=pytorch)](https://pytorch.org/)
+[![CI](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/ci.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/security.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/security.yml)
+
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![Express](https://img.shields.io/badge/Backend-Express.js-blue?style=flat-square&logo=express)](https://expressjs.com/)
+[![Flask](https://img.shields.io/badge/ML--Service-Flask-lightgrey?style=flat-square&logo=flask)](https://flask.palletsprojects.com/)
+[![PyTorch](https://img.shields.io/badge/ML-PyTorch%20%7C%20HuggingFace-EE4C2C?style=flat-square&logo=pytorch)](https://pytorch.org/)
 
 **AngelFive** is a production-ready financial analytics platform that bridges the gap between raw market data and actionable quantitative insights.
 
