@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import torch
 from arch import arch_model
 from scipy.optimize import minimize
@@ -101,8 +101,26 @@ def mpt_optimize(returns, symbols, risk_free_rate=0.06):
     n_assets = len(symbols)
     expected_returns = np.mean(returns_matrix, axis=1) * 252
     cov_matrix = np.cov(returns_matrix) * 252
-    target_returns = np.linspace(np.min(expected_returns), np.max(expected_returns) * 1.1, 40)
+
+    # 1. Find the Minimum Variance Portfolio (MVP)
+    def mvp_variance(weights):
+        return weights.T @ cov_matrix @ weights
+
+    mvp_constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+    mvp_bounds = tuple((0, 1) for _ in range(n_assets))
+    mvp_initial = np.array([1.0 / n_assets] * n_assets)
+    mvp_res = minimize(mvp_variance, mvp_initial, method="SLSQP", bounds=mvp_bounds, constraints=mvp_constraints)
+
+    mvp_return = mvp_res.x.T @ expected_returns if mvp_res.success else np.mean(expected_returns)
+
+    # 2. Generate target returns from MVP return to Max Return
+    max_ret = np.max(expected_returns)
+    start_ret = mvp_return
+    end_ret = max(max_ret, mvp_return + 0.05)
+
+    target_returns = np.linspace(start_ret, end_ret, 30)
     portfolios = []
+
     for target_return in target_returns:
         def portfolio_variance(weights):
             return weights.T @ cov_matrix @ weights
@@ -120,14 +138,24 @@ def mpt_optimize(returns, symbols, risk_free_rate=0.06):
             vol = float(np.sqrt(weights.T @ cov_matrix @ weights))
             sharpe = (port_return - float(risk_free_rate)) / vol if vol > 0 else 0.0
             portfolios.append({"weights": weights.tolist(), "expected_return": port_return, "volatility": vol, "sharpe_ratio": float(sharpe)})
+
     portfolios.sort(key=lambda item: item["volatility"])
-    optimal = max(portfolios, key=lambda item: item["sharpe_ratio"]) if portfolios else None
+
+    efficient_portfolios = []
+    if portfolios:
+        last_vol = -1
+        for p in portfolios:
+            if p["volatility"] > last_vol:
+                efficient_portfolios.append(p)
+                last_vol = p["volatility"]
+
+    optimal = max(efficient_portfolios, key=lambda item: item["sharpe_ratio"]) if efficient_portfolios else None
     return {
         "model": "MPT",
         "symbols": symbols,
         "risk_free_rate": float(risk_free_rate),
         "optimal_portfolio": optimal,
-        "efficient_frontier": portfolios[:30],
+        "efficient_frontier": efficient_portfolios,
         "expected_returns": expected_returns.tolist(),
         "covariance_matrix": cov_matrix.tolist(),
     }
@@ -152,7 +180,7 @@ def black_litterman_optimize(returns, symbols, views=None, risk_aversion=3.0, ta
 
     n_assets = len(symbols)
     constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
-    bounds = tuple((0.01, max(0.4, 2.0 / n_assets)) for _ in range(n_assets))
+    bounds = tuple((0.005, max(0.35, 1.5 / n_assets)) for _ in range(n_assets))
     result = minimize(negative_sharpe, market_weights, method="SLSQP", bounds=bounds, constraints=constraints)
     weights = result.x if result.success else market_weights
     weights = np.clip(weights, 0, 1)

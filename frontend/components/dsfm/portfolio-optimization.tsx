@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -302,7 +302,7 @@ export function PortfolioOptimization() {
         xAxisLabel.setAttribute("text-anchor", "middle");
         xAxisLabel.setAttribute("fill", "#6b7280");
         xAxisLabel.setAttribute("font-size", "12");
-        xAxisLabel.textContent = "Volatility (Risk) →";
+        xAxisLabel.textContent = "Volatility (Risk) â†’";
         svg.appendChild(xAxisLabel);
 
         const yAxisLabel = document.createElementNS(
@@ -315,7 +315,7 @@ export function PortfolioOptimization() {
         yAxisLabel.setAttribute("fill", "#6b7280");
         yAxisLabel.setAttribute("font-size", "12");
         yAxisLabel.setAttribute("transform", `rotate(-90, 15, ${height / 2})`);
-        yAxisLabel.textContent = "↑ Expected Return (%)";
+        yAxisLabel.textContent = "â†‘ Expected Return (%)";
         svg.appendChild(yAxisLabel);
 
         // Add tick labels
@@ -470,7 +470,7 @@ export function PortfolioOptimization() {
                                         }
                                         size="sm"
                                         onClick={() => toggleSymbol(sym)}
-                                        className="text-xs"
+                                        className="text-xs w-24 justify-center border"
                                     >
                                         {sym}
                                     </Button>

@@ -678,6 +678,9 @@ router.get(
             const symbol = String(req.query.symbol || "")
                 .trim()
                 .toUpperCase();
+            const timeframe = String(req.query.timeframe || "1Y")
+                .trim()
+                .toUpperCase();
             if (!symbol) {
                 res.status(400).json({ error: "Symbol is required" });
                 return;
@@ -690,13 +693,25 @@ router.get(
                 symbol, // Direct
             ];
 
-            // Calculate date range (1 year)
+            const timeframeConfig: Record<
+                string,
+                { lookbackSeconds: number; interval: string }
+            > = {
+                "1D": { lookbackSeconds: 7 * 24 * 60 * 60, interval: "5m" },
+                "5D": { lookbackSeconds: 30 * 24 * 60 * 60, interval: "15m" },
+                "1M": { lookbackSeconds: 180 * 24 * 60 * 60, interval: "1d" },
+                "3M": { lookbackSeconds: 365 * 24 * 60 * 60, interval: "1d" },
+                "6M": { lookbackSeconds: 2 * 365 * 24 * 60 * 60, interval: "1d" },
+                "1Y": { lookbackSeconds: 5 * 365 * 24 * 60 * 60, interval: "1d" },
+            };
+            const config = timeframeConfig[timeframe] || timeframeConfig["1Y"];
+
             const to = Math.floor(Date.now() / 1000);
-            const from = to - 365 * 24 * 60 * 60;
+            const from = to - config.lookbackSeconds;
 
             for (const yahooSymbol of symbolFormats) {
                 try {
-                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${from}&period2=${to}&interval=1d&events=history`;
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${from}&period2=${to}&interval=${config.interval}&events=history`;
 
                     console.log(`[Yahoo Finance] Trying: ${yahooSymbol}`);
 
@@ -766,7 +781,12 @@ router.get(
                         console.log(
                             `[Yahoo Finance] ✅ Success for ${yahooSymbol}: ${candles.length} candles`,
                         );
-                        res.json({ candles, symbol: yahooSymbol });
+                        res.json({
+                            candles,
+                            symbol: yahooSymbol,
+                            timeframe,
+                            interval: config.interval,
+                        });
                         return;
                     }
                 } catch (e: any) {

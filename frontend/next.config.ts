@@ -29,10 +29,6 @@ const nextConfig: NextConfig = {
                 source: "/api/auth/:path*",
                 destination: `${URL_BASE}/api/auth/:path*`,
             },
-            {
-                source: "/api/ml/:path*",
-                destination: `${process.env.NEXT_PUBLIC_ML_SERVICE_URL || "http://localhost:8000"}/:path*`,
-            },
         ];
     },
 };

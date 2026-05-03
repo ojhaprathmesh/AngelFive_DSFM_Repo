@@ -428,42 +428,7 @@ export default function WatchlistPage() {
 
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900">
-            {/* Market Indices Header */}
-            <div
-                className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-6">
-                    {marketIndices.map((index) => (
-                        <div key={index.name} className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                {index.name}:
-                            </span>
-                            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                                {index.value.toLocaleString("en-IN", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                })}
-                            </span>
-                            <span
-                                className={`text-sm font-semibold ${index.isPositive
-                                    ? "text-green-600 dark:text-green-400"
-                                    : "text-red-600 dark:text-red-400"
-                                    }`}
-                            >
-                                {index.change >= 0 ? "+" : ""}
-                                {index.change.toFixed(2)} ({index.change >= 0 ? "+" : ""}
-                                {index.changePercent.toFixed(2)}%)
-                            </span>
-                        </div>
-                    ))}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {new Date().toLocaleTimeString("en-IN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                    })}
-                </div>
-            </div>
+
 
             <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Left Sidebar - Watchlist */}
@@ -471,7 +436,7 @@ export default function WatchlistPage() {
                     className="w-80 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden">
                     {/* Watchlist Tabs */}
                     <div
-                        className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                        className="flex h-12 items-center justify-between px-3 border-b border-gray-200 dark:border-gray-700">
                         <div
                             ref={tabsRef}
                             className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap"
@@ -883,23 +848,32 @@ export default function WatchlistPage() {
 
                 {/* Main Chart Area */}
                 <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-800">
-                    <div className="flex items-center gap-6 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
-                        {(["Chart", "Overview"] as const).map((t) => (
-                            <button
-                                key={t}
-                                onClick={() => setMainTab(t)}
-                                className={`relative -mb-px pb-2 text-sm font-medium transition-colors ${mainTab === t
-                                    ? "text-blue-600 dark:text-blue-400"
-                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                                    }`}
-                            >
-                                {t}
-                                {mainTab === t && (
-                                    <span
-                                        className="absolute left-0 right-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
-                                )}
-                            </button>
-                        ))}
+                    <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4">
+                        <div className="flex h-12 items-center gap-6">
+                            {(["Chart", "Overview"] as const).map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setMainTab(t)}
+                                    className={`relative -mb-px pb-2 text-sm font-medium transition-colors ${mainTab === t
+                                        ? "text-blue-600 dark:text-blue-400"
+                                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                                        }`}
+                                >
+                                    {t}
+                                    {mainTab === t && (
+                                        <span
+                                            className="absolute left-0 right-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {new Date().toLocaleTimeString("en-IN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                            })}
+                        </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-hidden">
                         {mainTab === "Chart" ? (

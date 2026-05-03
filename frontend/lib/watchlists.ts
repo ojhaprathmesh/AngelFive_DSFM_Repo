@@ -12,7 +12,7 @@ class WatchlistHttpService {
     private readonly baseUrl: string;
 
     constructor() {
-        this.baseUrl = process.env.BACKEND_URL || "";
+        this.baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
     }
 
     subscribe(

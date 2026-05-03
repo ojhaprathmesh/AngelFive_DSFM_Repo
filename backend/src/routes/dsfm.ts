@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+﻿import { Request, Response, Router } from "express";
 
 import { ENV } from "../config/env";
 import { fetchNSEIndex } from "../lib/nse";
@@ -199,12 +199,19 @@ async function fetchYahooFinanceData(
             const date = new Date(timestamps[i] * 1000);
             const timeStr = date.toISOString().replace("T", " ").substring(0, 19);
 
+            const close = quote.close[i];
+            const open = quote.open[i];
+            const high = quote.high[i];
+            const low = quote.low[i];
+
+            if (!close || close === 0) continue;
+
             candles.push({
                 time: timeStr,
-                open: quote.open[i] || 0,
-                high: quote.high[i] || 0,
-                low: quote.low[i] || 0,
-                close: quote.close[i] || 0,
+                open: open || close,
+                high: high || close,
+                low: low || close,
+                close: close,
                 volume: quote.volume[i] || 0,
             });
         }
@@ -268,10 +275,10 @@ async function fetchAngelHistoricalCandles(
 
     const body = {
         exchange: tokenInfo.exchange,
-        symbolToken: tokenInfo.token,
+        symboltoken: tokenInfo.token,
         interval,
-        fromDate: formatDateTime(fromDate),
-        toDate: formatDateTime(now),
+        fromdate: formatDateTime(fromDate),
+        todate: formatDateTime(now),
     };
 
     try {
@@ -404,12 +411,15 @@ async function fetchAngelHistoricalCandles(
             const seconds = String(dateObj.getSeconds()).padStart(2, "0");
             const parsedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
+            const c = Number(close) || 0;
+            if (c === 0) continue;
+
             validCandles.push({
                 time: parsedTime,
-                open: Number(open) || 0,
-                high: Number(high) || 0,
-                low: Number(low) || 0,
-                close: Number(close) || 0,
+                open: Number(open) || c,
+                high: Number(high) || c,
+                low: Number(low) || c,
+                close: c,
                 volume: Number(volume) || 0,
             });
         }
@@ -452,8 +462,11 @@ async function fetchAngelHistoricalCandles(
 function calculateLogReturns(prices: number[]): number[] {
     const returns: number[] = [];
     for (let i = 1; i < prices.length; i++) {
-        if (prices[i - 1] > 0) {
-            returns.push(Math.log(prices[i] / prices[i - 1]));
+        if (prices[i - 1] > 0 && prices[i] > 0) {
+            const ret = Math.log(prices[i] / prices[i - 1]);
+            if (isFinite(ret)) {
+                returns.push(ret);
+            }
         }
     }
     return returns;
@@ -606,17 +619,17 @@ router.get("/returns", async (req: Request, res: Response): Promise<void> => {
             // Calculation explanations
             calculations: {
                 meanReturn: {
-                    formula: "μ = (1/n) * Σ(returns)",
+                    formula: "Î¼ = (1/n) * Î£(returns)",
                     description: "Average daily log return",
                     value: stats.mean,
                 },
                 volatility: {
-                    formula: "σ = √(Σ(returns - μ)² / n)",
+                    formula: "Ïƒ = âˆš(Î£(returns - Î¼)Â² / n)",
                     description: "Standard deviation of returns (risk measure)",
                     value: stats.std,
                 },
                 sharpeRatio: {
-                    formula: "Sharpe = (μ_annual - r_f) / σ_annual",
+                    formula: "Sharpe = (Î¼_annual - r_f) / Ïƒ_annual",
                     description: "Risk-adjusted return (higher is better)",
                     value: isFinite(sharpeRatio) ? sharpeRatio : 0,
                 },
@@ -788,7 +801,7 @@ router.get(
             }
             const averageCorrelation = count > 0 ? sumCorr / count : 0;
 
-            // Simple eigenvalue estimation (largest eigenvalue ≈ trace for correlation matrix)
+            // Simple eigenvalue estimation (largest eigenvalue â‰ˆ trace for correlation matrix)
             // For proper eigenvalues, we'd need a linear algebra library
             // Here we'll use a simple approximation: sum of correlations per row
             const eigenvalues: number[] = [];

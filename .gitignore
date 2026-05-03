@@ -1,22 +1,41 @@
-# ide
-**.vscode/
-**.idea/
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# builds
-**.next
-
-# test scripts
-scripts
-
-# typescript
-**node_modules
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+dist/
+.turbo/
 **.tsbuildinfo
 next-env.d.ts
 
-# python
+# Python
 __pycache__/
-**venv/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
+*.log
 
-# envs
-**.env**
+# Scripts & Data
+scripts/
+
+# Environment / Secrets
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 **firebase-adminsdk**
+
+# OS specific
+.DS_Store
+Thumbs.db

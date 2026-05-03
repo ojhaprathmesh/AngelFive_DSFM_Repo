@@ -105,33 +105,43 @@ export interface SmartApiQuoteItem {
     totSellQuan?: number;
 }
 
+let quoteFetchQueue = Promise.resolve();
+const QUOTE_INTERVAL_MS = 105; // ~10 RPS
+
+function queueQuoteFetch<T>(fn: () => Promise<T>): Promise<T> {
+    const next = quoteFetchQueue.then(() => new Promise<void>(res => setTimeout(res, QUOTE_INTERVAL_MS)));
+    quoteFetchQueue = next.catch(() => {});
+    return next.then(() => fn());
+}
+
 export async function fetchSmartApiQuotes(
     exchangeTokens: Record<string, string[]>,
 ): Promise<SmartApiQuoteItem[]> {
     const jwt = await getSmartApiJwtToken();
     if (!jwt) return [];
 
-    try {
-        const response = await fetch(
-            "https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote/",
-            {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${jwt}`,
-                    "X-PrivateKey": ENV.SMARTAPI_API_KEY,
-                    "X-SourceID": "WEB",
-                    "X-ClientLocalIP": ENV.SMARTAPI_LOCAL_IP,
-                    "X-ClientPublicIP": ENV.SMARTAPI_PUBLIC_IP,
-                    "X-MACAddress": ENV.SMARTAPI_MAC_ADDRESS,
-                    "X-UserType": "USER",
-                    "Content-Type": "application/json",
+    return queueQuoteFetch(async () => {
+        try {
+            const response = await fetch(
+                "https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote/",
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${jwt}`,
+                        "X-PrivateKey": ENV.SMARTAPI_API_KEY,
+                        "X-SourceID": "WEB",
+                        "X-ClientLocalIP": ENV.SMARTAPI_LOCAL_IP,
+                        "X-ClientPublicIP": ENV.SMARTAPI_PUBLIC_IP,
+                        "X-MACAddress": ENV.SMARTAPI_MAC_ADDRESS,
+                        "X-UserType": "USER",
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        mode: "FULL",
+                        exchangeTokens,
+                    }),
                 },
-                body: JSON.stringify({
-                    mode: "FULL",
-                    exchangeTokens,
-                }),
-            },
-        );
+            );
 
         if (!response.ok) return [];
 
@@ -156,11 +166,21 @@ export async function fetchSmartApiQuotes(
         console.error("SmartAPI quote fetch failed:", error);
         return [];
     }
+    });
 }
 
 /* ---------------------------------- */
 /* CANDLES                            */
 /* ---------------------------------- */
+
+let candleFetchQueue = Promise.resolve();
+const CANDLE_INTERVAL_MS = 350; // ~3 RPS
+
+function queueCandleFetch<T>(fn: () => Promise<T>): Promise<T> {
+    const next = candleFetchQueue.then(() => new Promise<void>(res => setTimeout(res, CANDLE_INTERVAL_MS)));
+    candleFetchQueue = next.catch(() => {});
+    return next.then(() => fn());
+}
 
 export async function fetchSmartApiCandles(
     exchange: string,
@@ -172,32 +192,33 @@ export async function fetchSmartApiCandles(
     const jwt = await getSmartApiJwtToken();
     if (!jwt) return [];
 
-    try {
-        const response = await fetch(
-            "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData",
-            {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${jwt}`,
-                    "X-PrivateKey": ENV.SMARTAPI_API_KEY,
-                    "X-SourceID": "WEB",
-                    "X-ClientLocalIP": ENV.SMARTAPI_LOCAL_IP,
-                    "X-ClientPublicIP": ENV.SMARTAPI_PUBLIC_IP,
-                    "X-MACAddress": ENV.SMARTAPI_MAC_ADDRESS,
-                    "X-UserType": "USER",
-                    "Content-Type": "application/json",
+    return queueCandleFetch(async () => {
+        try {
+            const response = await fetch(
+                "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData",
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${jwt}`,
+                        "X-PrivateKey": ENV.SMARTAPI_API_KEY,
+                        "X-SourceID": "WEB",
+                        "X-ClientLocalIP": ENV.SMARTAPI_LOCAL_IP,
+                        "X-ClientPublicIP": ENV.SMARTAPI_PUBLIC_IP,
+                        "X-MACAddress": ENV.SMARTAPI_MAC_ADDRESS,
+                        "X-UserType": "USER",
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        // SmartAPI expects these exact field names (per Historical API docs):
+                        // exchange, symboltoken, interval, fromdate, todate
+                        exchange,
+                        symboltoken: symbolToken,
+                        interval,
+                        fromdate: fromDate,
+                        todate: toDate,
+                    }),
                 },
-                body: JSON.stringify({
-                    // SmartAPI expects these exact field names (per Historical API docs):
-                    // exchange, symboltoken, interval, fromdate, todate
-                    exchange,
-                    symboltoken: symbolToken,
-                    interval,
-                    fromdate: fromDate,
-                    todate: toDate,
-                }),
-            },
-        );
+            );
 
         if (!response.ok) {
             const errText = await response.text().catch(() => "");
@@ -228,4 +249,5 @@ export async function fetchSmartApiCandles(
         console.error("SmartAPI candle fetch failed:", error);
         return [];
     }
+    });
 }

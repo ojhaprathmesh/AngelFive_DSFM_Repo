@@ -11,7 +11,7 @@ import {
     LineSeries,
     Time,
 } from "lightweight-charts";
-import { Activity, AlertCircle, Circle, Moon, MousePointer2, Move, Sun, ZoomIn, ZoomOut, } from "lucide-react";
+import { Activity, AlertCircle, Circle, MousePointer2, Move } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -48,7 +48,6 @@ export function WatchlistChart({
     const [showEMA, setShowEMA] = useState<boolean>(false);
     const [emaPeriod, setEmaPeriod] = useState<number>(9);
     const emaSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-    const [darkMode, setDarkMode] = useState<boolean>(false);
     const [toolMode, setToolMode] = useState<"pointer" | "cross" | "dot">(
         "pointer",
     );
@@ -91,6 +90,10 @@ export function WatchlistChart({
                         data.candles.length,
                         "candles from backend for",
                         data.symbol,
+                        "timeframe:",
+                        data.timeframe,
+                        "interval:",
+                        data.interval,
                     );
                     return data.candles;
                 }
@@ -193,33 +196,33 @@ export function WatchlistChart({
                 layout: {
                     background: {
                         type: ColorType.Solid,
-                        color: darkMode ? "#1f2937" : "transparent",
+                        color: "transparent",
                     },
-                    textColor: darkMode ? "#e5e7eb" : "#374151",
+                    textColor: "#374151",
                 },
                 width: width,
                 height: height,
                 grid: {
                     vertLines: { color: "transparent" },
-                    horzLines: { color: darkMode ? "#374151" : "#e5e7eb" },
+                    horzLines: { color: "#e5e7eb" },
                 },
                 crosshair: {
                     mode: 1,
                 },
                 rightPriceScale: {
-                    borderColor: darkMode ? "#374151" : "#e5e7eb",
+                    borderColor: "#e5e7eb",
                     visible: true,
                 },
                 timeScale: {
                     borderVisible: true,
                     timeVisible: true,
                     visible: true,
-                    rightOffset: 12,
+                    rightOffset: 2,
                     barSpacing: 6,
-                    fixLeftEdge: false,
+                    fixLeftEdge: true,
                     fixRightEdge: false,
                     lockVisibleTimeRangeOnResize: false,
-                    rightBarStaysOnScroll: true,
+                    rightBarStaysOnScroll: false,
                     allowBoldLabels: true,
                     shiftVisibleRangeOnNewBar: true,
                     minimumHeight: 80,
@@ -292,7 +295,28 @@ export function WatchlistChart({
             console.error("[WatchlistChart] Error initializing chart:", e);
             return false;
         }
-    }, [darkMode]);
+    }, []);
+
+    const applyVisibleRangeByTimeframe = useCallback(
+        (pointCount: number) => {
+            if (!chartRef.current || pointCount <= 0) return;
+            const barsByTimeframe: Record<typeof timeframe, number> = {
+                "1D": 78,
+                "5D": 130,
+                "1M": 22,
+                "3M": 66,
+                "6M": 132,
+                "1Y": 252,
+            };
+            const bars = barsByTimeframe[timeframe];
+            const from = Math.max(0, pointCount - bars);
+            chartRef.current.timeScale().setVisibleLogicalRange({
+                from,
+                to: pointCount + 2,
+            });
+        },
+        [timeframe],
+    );
 
     // Set chart data
     const setChartData = useCallback(
@@ -311,7 +335,7 @@ export function WatchlistChart({
                 console.log("[WatchlistChart] Setting", data.length, "candles");
 
                 seriesRef.current.setData(data);
-                chartRef.current?.timeScale().fitContent();
+                applyVisibleRangeByTimeframe(data.length);
 
                 if (showEMA) {
                     updateEMA(data);
@@ -322,7 +346,7 @@ export function WatchlistChart({
                 console.error("[WatchlistChart] Error setting data:", e);
             }
         },
-        [showEMA, updateEMA],
+        [showEMA, updateEMA, applyVisibleRangeByTimeframe],
     );
 
     // Main effect: Load data and initialize chart
@@ -477,7 +501,7 @@ export function WatchlistChart({
                             });
 
                             seriesRef.current.setData(allData);
-                            chartRef.current.timeScale().fitContent();
+                            applyVisibleRangeByTimeframe(allData.length);
 
                             // CRITICAL: Ensure X-axis is visible AFTER fitContent
                             chartRef.current.timeScale().applyOptions({
@@ -487,9 +511,6 @@ export function WatchlistChart({
                                 minimumHeight: 80, // Increased for better visibility
                                 borderVisible: true,
                             });
-
-                            // Fit content after setting timeScale options
-                            chartRef.current.timeScale().fitContent();
 
                             // Force resize to ensure X-axis is rendered
                             setTimeout(() => {
@@ -512,7 +533,7 @@ export function WatchlistChart({
                                         borderVisible: true,
                                     });
 
-                                    chartRef.current.timeScale().fitContent();
+                                    applyVisibleRangeByTimeframe(allData.length);
                                     console.log(
                                         "[WatchlistChart] ✅ X-axis configured - height:",
                                         newHeight,
@@ -581,14 +602,15 @@ export function WatchlistChart({
         if (!symbol) return;
 
         // Clear existing data so the main loadChart effect re-runs fresh
-        setAllChartData([]);
         setIsLoading(true);
         setError(null);
-
-        if (chartRef.current && seriesRef.current) {
-            seriesRef.current.setData([]); // clear visual candles immediately
-        }
     }, [timeframe, symbol]);
+
+    useEffect(() => {
+        if (allChartData.length > 0) {
+            applyVisibleRangeByTimeframe(allChartData.length);
+        }
+    }, [timeframe, allChartData, applyVisibleRangeByTimeframe]);
 
     // Update EMA when enabled/period changes
     useEffect(() => {
@@ -679,27 +701,6 @@ export function WatchlistChart({
         }
     }, [toolMode, isLoading]); // Re-apply when tool changes or chart re-loads
 
-    // Update dark mode
-    useEffect(() => {
-        if (chartRef.current) {
-            chartRef.current.applyOptions({
-                layout: {
-                    background: {
-                        type: ColorType.Solid,
-                        color: darkMode ? "#1f2937" : "transparent",
-                    },
-                    textColor: darkMode ? "#e5e7eb" : "#374151",
-                },
-                grid: {
-                    horzLines: { color: darkMode ? "#374151" : "#e5e7eb" },
-                },
-                rightPriceScale: {
-                    borderColor: darkMode ? "#374151" : "#e5e7eb",
-                },
-            });
-        }
-    }, [darkMode]);
-
     if (error) {
         return (
             <div className="flex items-center justify-center h-full p-4">
@@ -717,11 +718,6 @@ export function WatchlistChart({
             {/* Simple Vertical Toolbar */}
             <div
                 className="flex flex-col items-center gap-2 p-2 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-12 shrink-0">
-                <div className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-2">
-                    Chart
-                </div>
-                <div className="w-full border-t border-gray-200 dark:border-gray-700 mb-2"></div>
-
                 {/* Pointer Tool */}
                 <Button
                     variant={toolMode === "pointer" ? "default" : "ghost"}
@@ -753,48 +749,6 @@ export function WatchlistChart({
                     title="Dot"
                 >
                     <Circle className="h-4 w-4" />
-                </Button>
-
-                <Button
-                    variant={darkMode ? "default" : "ghost"}
-                    size="sm"
-                    className="w-8 h-8 p-0"
-                    onClick={() => setDarkMode(!darkMode)}
-                    title="Dark Mode"
-                >
-                    {darkMode ? (
-                        <Sun className="h-4 w-4" />
-                    ) : (
-                        <Moon className="h-4 w-4" />
-                    )}
-                </Button>
-
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-8 h-8 p-0"
-                    onClick={() => {
-                        if (chartRef.current) {
-                            chartRef.current.timeScale().scrollToPosition(-5, false);
-                        }
-                    }}
-                    title="Zoom In"
-                >
-                    <ZoomIn className="h-4 w-4" />
-                </Button>
-
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-8 h-8 p-0"
-                    onClick={() => {
-                        if (chartRef.current) {
-                            chartRef.current.timeScale().scrollToPosition(5, false);
-                        }
-                    }}
-                    title="Zoom Out"
-                >
-                    <ZoomOut className="h-4 w-4" />
                 </Button>
             </div>
 
