@@ -63,7 +63,7 @@ export function SignupForm() {
                 </h1>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} method="POST" className="space-y-4">
                 <FieldGroup>
                     <Field>
                         <FieldLabel htmlFor="name">Full Name</FieldLabel>

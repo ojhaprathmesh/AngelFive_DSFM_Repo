@@ -3,7 +3,7 @@ import { Request, Response, Router } from "express";
 import { fetchNSEIndex, getNSECookie } from "../lib/nse";
 import { fetchSmartApiCandles, fetchSmartApiQuotes, hasSmartApiCredentials, } from "../lib/smartapi";
 import { swrCache, TTL } from "../services/cache";
-
+import { verifyToken } from "../middleware/auth";
 const router: Router = Router();
 
 type Quote = {
@@ -809,14 +809,14 @@ router.get(
 );
 
 // Debug endpoint — see what's cached and how fresh it is
-router.get("/cache-status", (_req: Request, res: Response) => {
+router.get("/cache-status", verifyToken, (_req: Request, res: Response) => {
     res.json({ entries: swrCache.status() });
 });
 
 // Clear cache — DELETE /api/market/cache?key=performers:1W  (single key)
 //               DELETE /api/market/cache?prefix=candles:    (all candle keys)
 //               DELETE /api/market/cache                    (everything)
-router.delete("/cache", (_req: Request, res: Response) => {
+router.delete("/cache", verifyToken, (_req: Request, res: Response) => {
     const key = String(_req.query.key || "").trim();
     const prefix = String(_req.query.prefix || "").trim();
 

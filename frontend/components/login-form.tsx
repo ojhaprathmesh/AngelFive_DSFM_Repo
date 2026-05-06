@@ -77,7 +77,7 @@ export function LoginForm() {
                 </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} method="POST" className="space-y-4">
                 <FieldGroup>
                     <Field>
                         <FieldLabel htmlFor="email">Email</FieldLabel>

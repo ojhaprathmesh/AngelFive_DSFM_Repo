@@ -5,6 +5,7 @@ import cors from "cors";
 import express, { Express, NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 
 import { ENV } from "./config/env";
 import authRouter from "./routes/auth";
@@ -72,11 +73,43 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* -------------------------------------------------------------------------- */
+/*                                RATE LIMITING                               */
+/* -------------------------------------------------------------------------- */
+
+// Global API rate limiter (100 requests per minute)
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: "error", message: "Too many requests, please try again later." },
+});
+
+// Strict rate limiter for Auth (10 requests per 15 minutes)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: "error", message: "Too many authentication attempts, please try again later." },
+});
+
+// Moderate rate limiter for Compute-heavy DSFM routes (20 requests per minute)
+const dsfmLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: "error", message: "Too many compute requests, please try again later." },
+});
+
+/* -------------------------------------------------------------------------- */
 /*                                  ROUTES                                    */
 /* -------------------------------------------------------------------------- */
 
-app.use("/api/auth", authRouter);
-app.use("/api/dsfm", dsfmRouter);
+app.use("/api", apiLimiter);
+app.use("/api/auth", authLimiter, authRouter);
+app.use("/api/dsfm", dsfmLimiter, dsfmRouter);
 app.use("/api/market", marketRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/watchlists", watchlistRouter);
