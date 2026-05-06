@@ -20,7 +20,7 @@ declare global {
                         auto_select?: boolean;
                         cancel_on_tap_outside?: boolean;
                     }) => void;
-                    prompt: () => void;
+                    prompt: (momentListener?: (notification: any) => void) => void;
                 };
             };
         };
@@ -30,15 +30,21 @@ declare global {
 interface GoogleSignInButtonProps {
     mode?: "signin" | "signup";
     disabled?: boolean;
+    onLoadingChange?: (isLoading: boolean) => void;
 }
 
 export function GoogleSignInButton({
     mode = "signin",
     disabled = false,
+    onLoadingChange,
 }: GoogleSignInButtonProps) {
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
     const { refreshUser } = useAuth();
+
+    useEffect(() => {
+        onLoadingChange?.(isLoading);
+    }, [isLoading, onLoadingChange]);
 
     const handleCredentialResponse = async (response: { credential: string }) => {
         setIsLoading(true);
@@ -120,7 +126,17 @@ export function GoogleSignInButton({
             toast.error("Google Sign-In is not ready yet. Please try again.");
             return;
         }
-        window.google.accounts.id.prompt();
+        
+        setIsLoading(true);
+        window.google.accounts.id.prompt((notification: any) => {
+            if (
+                notification.isNotDisplayed() || 
+                notification.isSkippedMomentum() || 
+                notification.isDismissedMomentum()
+            ) {
+                setIsLoading(false);
+            }
+        });
     };
 
     return (

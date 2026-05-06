@@ -12,6 +12,7 @@ import { type AuthRequest, authService } from "@/lib/firebase";
 
 export function SignupForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const router = useRouter();
     const { refreshUser } = useAuth();
 
@@ -124,7 +125,7 @@ export function SignupForm() {
                     </Field>
                 </FieldGroup>
 
-                <Button type="submit" disabled={isSubmitting} className="w-full">
+                <Button type="submit" disabled={isSubmitting || isGoogleLoading} className="w-full">
                     {isSubmitting ? (
                         <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -137,7 +138,11 @@ export function SignupForm() {
 
                 <FieldSeparator className="mb-2">Or continue with</FieldSeparator>
 
-                <GoogleSignInButton mode="signup" disabled={isSubmitting} />
+                <GoogleSignInButton 
+                    mode="signup" 
+                    disabled={isSubmitting} 
+                    onLoadingChange={setIsGoogleLoading}
+                />
             </form>
 
             <div className="text-center">
