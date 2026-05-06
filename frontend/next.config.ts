@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const URL_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 const nextConfig: NextConfig = {
+    output: "standalone",
     async rewrites() {
         return [
             {
