@@ -40,6 +40,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 import { marketDataService } from "@/lib/market-data";
+import { NotificationDropdown } from "./notification-dropdown";
+
 
 interface MarketData {
     symbol: string;
@@ -383,12 +385,8 @@ export function DashboardNavbar({ user }: DashboardNavbarProps) {
                     </div>
 
                     {/* Notifications */}
-                    <Button variant="ghost" size="sm" className="relative touch-target">
-                        <Bell className="h-5 w-5" />
-                        <Badge className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 text-[9.75px]">
-                            3
-                        </Badge>
-                    </Button>
+                    <NotificationDropdown />
+
 
                     {/* User Profile Dropdown */}
                     <DropdownMenu>

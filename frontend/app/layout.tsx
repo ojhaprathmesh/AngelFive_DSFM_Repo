@@ -9,6 +9,8 @@ import { Toaster } from "sonner";
 
 import { KeepAlive } from "@/components/keep-alive";
 import { AuthProvider } from "@/contexts/auth-context";
+import { NotificationProvider } from "@/contexts/notification-context";
+
 
 export const metadata: Metadata = {
     title: "AngelFive - Smart Financial Data Management",
@@ -31,8 +33,10 @@ export default function RootLayout({
         <html lang="en" className={jetbrainsMono.variable}>
             <body className="font-mono antialiased">
                 <AuthProvider>
-                    <KeepAlive />
-                    {children}
+                    <NotificationProvider>
+                        <KeepAlive />
+                        {children}
+                    </NotificationProvider>
                     <Toaster
                         position="bottom-right"
                         toastOptions={{

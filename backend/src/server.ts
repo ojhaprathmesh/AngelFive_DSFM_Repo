@@ -10,7 +10,13 @@ import { ENV } from "./config/env";
 import authRouter from "./routes/auth";
 import dsfmRouter from "./routes/dsfm";
 import marketRouter from "./routes/market";
+import notificationsRouter from "./routes/notifications";
 import watchlistRouter from "./routes/watchlists";
+import { notificationService } from "./services/notification";
+
+// Explicitly reference notificationService to ensure it's initialized and listeners are attached
+const _ = notificationService;
+
 
 const app: Express = express();
 const PORT = ENV.PORT;
@@ -72,7 +78,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRouter);
 app.use("/api/dsfm", dsfmRouter);
 app.use("/api/market", marketRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/api/watchlists", watchlistRouter);
+
 
 /* -------------------------------------------------------------------------- */
 /*                             BASIC & HEALTH ROUTES                          */

@@ -1,24 +1,13 @@
 import { Request, Response, Router } from "express";
-import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { firebaseFirestore } from "../config/firebase";
+import { verifyToken as verifyTokenMiddleware } from "../middleware/auth";
+import { appEvents, AppEventType } from "../services/event-emitter";
+
 
 const router: Router = Router();
 
-const verifyToken = async (req: Request): Promise<string> => {
-    const header = req.headers.authorization;
-    const token =
-        header && header.startsWith("Bearer ") ? header.slice(7) : undefined;
-    const queryToken =
-        typeof req.query.token === "string"
-            ? (req.query.token as string)
-            : undefined;
-    const idToken = token || queryToken;
-    if (!idToken) throw new Error("Missing token");
-    const decoded = await getAuth().verifyIdToken(idToken);
-    return decoded.uid;
-};
 
 type WatchlistDoc = {
     id: string;
@@ -57,9 +46,10 @@ function sortWatchlist(items: WatchlistDoc[]): Omit<WatchlistDoc, "_orderIndex">
         .map(({ id, name, createdAt }) => ({ id, name, createdAt }));
 }
 
-router.get("/stream", async (req: Request, res: Response): Promise<void> => {
+router.get("/stream", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
@@ -143,6 +133,7 @@ router.get("/stream", async (req: Request, res: Response): Promise<void> => {
         req.on("close", () => {
             unsubscribe();
         });
+        return;
     } catch (error: any) {
         res
             .status(401)
@@ -150,9 +141,10 @@ router.get("/stream", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.get("/", async (req: Request, res: Response): Promise<void> => {
+router.get("/", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const colRef = firebaseFirestore
             .collection("users")
             .doc(uid)
@@ -197,7 +189,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
                 await batch.commit();
             }
             const refreshed = await colRef.orderBy("createdAt", "asc").get();
-            const items = refreshed.docs.map((d) => {
+            const refreshedItems = refreshed.docs.map((d) => {
                 const data = d.data() as { name: string; createdAt?: Timestamp };
                 return {
                     id: d.id,
@@ -205,7 +197,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
                     createdAt: (data.createdAt as Timestamp) || Timestamp.now(),
                 };
             });
-            res.json({ items });
+            res.json({ items: refreshedItems });
             return;
         }
         const items = mapWatchlistDocs(snap.docs);
@@ -218,15 +210,17 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.post("/", async (req: Request, res: Response): Promise<void> => {
+router.post("/", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const name = (req.body?.name as string) || "";
         const trimmed = name.trim();
         if (!trimmed) {
             res.status(400).json({ status: "error", message: "Name is required" });
             return;
         }
+
         const colRef = firebaseFirestore
             .collection("users")
             .doc(uid)
@@ -239,11 +233,25 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             });
             return;
         }
+
         const doc = await colRef.add({
             name: trimmed,
             createdAt: FieldValue.serverTimestamp(),
         });
+
+        // Emit event
+        appEvents.emit(AppEventType.WATCHLIST_CREATED, {
+            userId: uid,
+            type: AppEventType.WATCHLIST_CREATED,
+            title: "Watchlist Created",
+            message: `New watchlist "${trimmed}" has been created.`,
+            category: "watchlist",
+            priority: "low",
+            action: { type: "navigate", url: "/dashboard/watchlist" }
+        });
+
         res.json({ status: "success", id: doc.id });
+
     } catch (error: any) {
         res
             .status(401)
@@ -251,9 +259,10 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/:id", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const id = String(req.params.id || "");
         const name = (req.body?.name as string) || "";
         const trimmed = name.trim();
@@ -294,9 +303,10 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+router.delete("/:id", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const id = String(req.params.id || "");
         if (!id) {
             res.status(400).json({ status: "error", message: "Invalid id" });
@@ -315,9 +325,10 @@ router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.post("/reorder", async (req: Request, res: Response): Promise<void> => {
+router.post("/reorder", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const order = Array.isArray(req.body?.order)
             ? (req.body.order as string[])
             : [];
@@ -347,9 +358,10 @@ router.post("/reorder", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.get("/counts", async (req: Request, res: Response): Promise<void> => {
+router.get("/counts", verifyTokenMiddleware, async (req: Request, res: Response) => {
     try {
-        const uid = await verifyToken(req);
+        const uid = (req as any).uid;
+
         const colRef = firebaseFirestore
             .collection("users")
             .doc(uid)
@@ -377,9 +389,11 @@ router.get("/counts", async (req: Request, res: Response): Promise<void> => {
 
 router.get(
     "/:id/symbols",
-    async (req: Request, res: Response): Promise<void> => {
+    verifyTokenMiddleware,
+    async (req: Request, res: Response) => {
         try {
-            const uid = await verifyToken(req);
+            const uid = (req as any).uid;
+
             const id = String(req.params.id || "");
             if (!id) {
                 res.status(400).json({ status: "error", message: "Invalid id" });
@@ -421,9 +435,11 @@ router.get(
 // Add symbol to watchlist
 router.post(
     "/:id/symbols",
-    async (req: Request, res: Response): Promise<void> => {
+    verifyTokenMiddleware,
+    async (req: Request, res: Response) => {
         try {
-            const uid = await verifyToken(req);
+            const uid = (req as any).uid;
+
             const id = String(req.params.id || "");
             const symbol = String(req.body?.symbol || "")
                 .trim()
@@ -476,7 +492,19 @@ router.post(
                 { merge: true },
             );
 
+            // Emit event
+            appEvents.emit(AppEventType.WATCHLIST_SYMBOL_ADDED, {
+                userId: uid,
+                type: AppEventType.WATCHLIST_SYMBOL_ADDED,
+                title: "Symbol Added",
+                message: `${symbol} added to your watchlist.`,
+                category: "watchlist",
+                priority: "low",
+                metadata: { symbol, watchlistId: id }
+            });
+
             res.json({ status: "success", id: symbol });
+
         } catch (error: any) {
             res
                 .status(401)
@@ -488,9 +516,11 @@ router.post(
 // Remove symbol from watchlist
 router.delete(
     "/:id/symbols/:symbolId",
-    async (req: Request, res: Response): Promise<void> => {
+    verifyTokenMiddleware,
+    async (req: Request, res: Response) => {
         try {
-            const uid = await verifyToken(req);
+            const uid = (req as any).uid;
+
             const id = String(req.params.id || "");
             const symbolId = String(req.params.symbolId || "");
 

@@ -4,7 +4,10 @@ import { getAuth } from "firebase-admin/auth";
 import { Timestamp } from "firebase-admin/firestore";
 
 import { ENV } from "../config/env";
+import { verifyToken } from "../middleware/auth";
 import { authService } from "../services/auth";
+import { appEvents, AppEventType } from "../services/event-emitter";
+
 
 // Extend Express Request type to include user
 interface AuthRequest extends Request {
@@ -111,12 +114,24 @@ router.post("/login", loginValidation, async (req: Request, res: Response): Prom
         const signInResult = await authService.signInUser(email);
         const userProfile = signInResult.success ? signInResult.user : await authService.getUserProfile(uid);
 
+        // Emit login event
+        appEvents.emit(AppEventType.AUTH_LOGIN, {
+            userId: uid,
+            type: AppEventType.AUTH_LOGIN,
+            title: "Welcome Back",
+            message: `Last login: ${new Date().toLocaleString()}`,
+            category: "security",
+            priority: "low",
+            dedupeKey: `login-${uid}-${new Date().toDateString()}`
+        });
+
         return res.json({
             status: "success",
             message: "Login successful",
             data: { token: customToken, user: userProfile },
             timestamp: new Date().toISOString(),
         });
+
     } catch (error) {
         return res.status(500).json({ status: "error", message: "Internal server error during login" });
     }
@@ -194,6 +209,16 @@ router.post(
 
             const customToken = await getAuth().createCustomToken(authResult.user!.uid);
 
+            // Emit signup event
+            appEvents.emit(AppEventType.AUTH_SIGNUP, {
+                userId: authResult.user!.uid,
+                type: AppEventType.AUTH_SIGNUP,
+                title: "Welcome to AngelFive",
+                message: "Your account has been created successfully. Explore our DSFM analytics!",
+                category: "system",
+                priority: "medium"
+            });
+
             return res.status(201).json({
                 status: "success",
                 message: "Account created successfully",
@@ -203,6 +228,7 @@ router.post(
                 },
                 timestamp: new Date().toISOString(),
             });
+
         } catch (error) {
             console.error("Signup error:", error);
             logSubmission(
@@ -229,7 +255,7 @@ router.get("/health", async (_req: Request, res: Response) => {
         const { checkFirebaseConnection } = await import("../config/firebase");
         const firebaseHealthy = await checkFirebaseConnection();
 
-        res.json({
+        return res.json({
             status: firebaseHealthy ? "healthy" : "degraded",
             service: "authentication",
             firebase: {
@@ -241,7 +267,7 @@ router.get("/health", async (_req: Request, res: Response) => {
         });
     } catch (error) {
         console.error("Health check error:", error);
-        res.status(503).json({
+        return res.status(503).json({
             status: "unhealthy",
             service: "authentication",
             error: "Firebase connection failed",
@@ -250,49 +276,25 @@ router.get("/health", async (_req: Request, res: Response) => {
     }
 });
 
-// Middleware to verify Firebase ID token
-const verifyToken = async (req: AuthRequest, res: Response, next: Function) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return res.status(401).json({
-                status: "error",
-                message: "No token provided",
-                timestamp: new Date().toISOString(),
-            });
-        }
-
-        const idToken = authHeader.split("Bearer ")[1];
-        const decodedToken = await getAuth().verifyIdToken(idToken);
-        req.user = { uid: decodedToken.uid, email: decodedToken.email };
-        next();
-        return;
-    } catch (error) {
-        console.error("Token verification error:", error);
-        return res.status(401).json({
-            status: "error",
-            message: "Invalid or expired token",
-            timestamp: new Date().toISOString(),
-        });
-    }
-};
 
 // Get user profile endpoint
 router.get(
     "/user/:uid",
     verifyToken,
-    async (req: AuthRequest, res: Response) => {
+    async (req: Request, res: Response) => {
         try {
             const { uid } = req.params;
+            const authenticatedUid = (req as any).uid;
 
             // Ensure user can only access their own profile
-            if (req.user!.uid !== uid) {
+            if (authenticatedUid !== uid) {
                 return res.status(403).json({
                     status: "error",
                     message: "Access denied",
                     timestamp: new Date().toISOString(),
                 });
             }
+
 
             const userProfile = await authService.getUserProfile(uid);
 
@@ -324,18 +326,20 @@ router.get(
 router.put(
     "/user/:uid/last-login",
     verifyToken,
-    async (req: AuthRequest, res: Response) => {
+    async (req: Request, res: Response) => {
         try {
             const { uid } = req.params;
+            const authenticatedUid = (req as any).uid;
 
             // Ensure user can only update their own last login time
-            if (req.user!.uid !== uid) {
+            if (authenticatedUid !== uid) {
                 return res.status(403).json({
                     status: "error",
                     message: "Access denied",
                     timestamp: new Date().toISOString(),
                 });
             }
+
 
             await authService.updateUserProfile(uid, {
                 lastLoginAt: Timestamp.now(),

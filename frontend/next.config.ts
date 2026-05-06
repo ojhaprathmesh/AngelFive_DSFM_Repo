@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
                 source: "/api/auth/:path*",
                 destination: `${URL_BASE}/api/auth/:path*`,
             },
+            {
+                source: "/api/notifications/:path*",
+                destination: `${URL_BASE}/api/notifications/:path*`,
+            },
         ];
     },
 };
