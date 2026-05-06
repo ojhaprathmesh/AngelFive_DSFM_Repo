@@ -4,9 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 export const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const header = req.headers.authorization;
-    const token = header && header.startsWith("Bearer ") ? header.slice(7) : undefined;
-    const queryToken = typeof req.query.token === "string" ? (req.query.token as string) : undefined;
-    const idToken = token || queryToken;
+    const idToken = header && header.startsWith("Bearer ") ? header.slice(7) : undefined;
 
     if (!idToken) {
       return res.status(401).json({ status: "error", message: "Missing token" });

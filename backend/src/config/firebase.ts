@@ -13,8 +13,7 @@ interface FirebaseConfig {
 
 const resolveFirebaseConfig = (): FirebaseConfig => {
     const privateKey = ENV.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n");
-    console.log("[Firebase] Private key starts with:\n", privateKey.substring(0, 56), "\n");
-    console.log("[Firebase] Private key ends with:", privateKey.slice(-52));
+
     return {
         projectId: ENV.FIREBASE_PROJECT_ID,
         clientEmail: ENV.FIREBASE_CLIENT_EMAIL,

@@ -147,45 +147,55 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     fetchNotifications();
 
     // Set up SSE for real-time updates
-    let eventSource: EventSource | null = null;
+    const controller = new AbortController();
 
     const setupSSE = async () => {
       try {
         const token = await firebaseUser.getIdToken();
-        eventSource = new EventSource(`/api/notifications/stream?token=${token}`);
-
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'stats') {
-            setStats(data.stats);
-          } else if (data.type === 'notifications') {
-            // Check for new notifications to show toast
-            const newNotifications = data.notifications.filter(
-              (n: Notification) => !notifications.some(existing => existing.id === n.id) && n.status === 'unread'
-            );
-            
-            if (newNotifications.length > 0) {
-              newNotifications.forEach((n: Notification) => {
-                toast(n.title, {
-                  description: n.message,
-                  action: n.action ? {
-                    label: "View",
-                    onClick: () => window.location.href = n.action!.url
-                  } : undefined
-                });
-              });
+        const { fetchEventSource } = await import('@microsoft/fetch-event-source');
+        
+        await fetchEventSource('/api/notifications/stream', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'text/event-stream',
+          },
+          signal: controller.signal,
+          onmessage(event) {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === 'stats') {
+                setStats(data.stats);
+              } else if (data.type === 'notifications') {
+                // Check for new notifications to show toast
+                const newNotifications = data.notifications.filter(
+                  (n: Notification) => !notifications.some(existing => existing.id === n.id) && n.status === 'unread'
+                );
+                
+                if (newNotifications.length > 0) {
+                  newNotifications.forEach((n: Notification) => {
+                    toast(n.title, {
+                      description: n.message,
+                      action: n.action ? {
+                        label: "View",
+                        onClick: () => window.location.href = n.action!.url
+                      } : undefined
+                    });
+                  });
+                }
+                
+                setNotifications(data.notifications);
+              }
+            } catch (err) {
+              console.error("Error parsing SSE data:", err);
             }
-            
-            setNotifications(data.notifications);
+          },
+          onerror(err) {
+            console.error("SSE Error:", err);
+            // Throwing triggers the automatic reconnect logic in fetchEventSource
+            throw err;
           }
-        };
-
-        eventSource.onerror = (err) => {
-          console.error("SSE Error:", err);
-          eventSource?.close();
-          // Attempt to reconnect after a delay
-          setTimeout(setupSSE, 5000);
-        };
+        });
       } catch (error) {
         console.error("Error setting up notification SSE:", error);
       }
@@ -194,7 +204,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setupSSE();
 
     return () => {
-      eventSource?.close();
+      controller.abort();
     };
   }, [firebaseUser, fetchNotifications, fetchStats]);
 

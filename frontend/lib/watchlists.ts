@@ -20,30 +20,44 @@ class WatchlistHttpService {
         onUpdate: (items: WatchlistItem[]) => void,
         onError?: (error: string) => void,
     ): () => void {
-        let es: EventSource | null = null;
+        const controller = new AbortController();
         (async () => {
             try {
                 const token = await auth.currentUser?.getIdToken(true);
-                const url = `${this.baseUrl}/api/watchlists/stream?token=${encodeURIComponent(String(token))}`;
-                es = new EventSource(url);
-                es.onmessage = (ev) => {
-                    try {
-                        const payload = JSON.parse(ev.data) as { items: WatchlistItem[] };
-                        onUpdate(payload.items || []);
-                    } catch {
-                        onError?.("Failed to parse update");
+                const url = `${this.baseUrl}/api/watchlists/stream`;
+                
+                // We use dynamic import so it doesn't break SSR if this runs on server
+                const { fetchEventSource } = await import('@microsoft/fetch-event-source');
+                
+                await fetchEventSource(url, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${String(token)}`,
+                        Accept: 'text/event-stream',
+                    },
+                    signal: controller.signal,
+                    onmessage(ev) {
+                        try {
+                            const payload = JSON.parse(ev.data) as { items: WatchlistItem[] };
+                            onUpdate(payload.items || []);
+                        } catch {
+                            onError?.("Failed to parse update");
+                        }
+                    },
+                    onerror(err) {
+                        onError?.("Stream error");
+                        // We throw the error to prevent automatic reconnection if it's a fatal error
+                        // but fetchEventSource handles reconnects by default if we don't throw.
+                        throw err;
                     }
-                };
-                es.onerror = () => {
-                    onError?.("Stream error");
-                };
+                });
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Authorization error";
                 onError?.(msg);
             }
         })();
         return () => {
-            es?.close();
+            controller.abort();
         };
     }
 
