@@ -11,7 +11,7 @@ router.get("/", verifyToken, async (req: Request, res: Response) => {
   try {
     const uid = (req as any).uid;
     const queryLimit = parseInt(req.query.limit as string) || 20;
-    const archived = req.query.archived === 'true';
+    const archived = req.query.archived === "true";
 
     const notificationsRef = firebaseFirestore
       .collection("users")
@@ -19,19 +19,19 @@ router.get("/", verifyToken, async (req: Request, res: Response) => {
       .collection("notifications");
 
     // Query without orderBy to avoid needing a composite index
-    const snap = await notificationsRef
-      .where("archived", "==", archived)
-      .get();
+    const snap = await notificationsRef.where("archived", "==", archived).get();
 
     const notifications = snap.docs
-      .map(doc => ({
+      .map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
       .sort((a: any, b: any) => {
         // Sort by createdAt descending (handle Firestore Timestamps)
-        const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
-        const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
+        const aTime =
+          a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
+        const bTime =
+          b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
         return bTime - aTime;
       })
       .slice(0, queryLimit);
@@ -55,9 +55,9 @@ router.get("/stats", verifyToken, async (req: Request, res: Response) => {
 
     const doc = await statsRef.get();
     if (!doc.exists) {
-      return res.json({ 
-        status: "success", 
-        stats: { unreadCount: 0, lastNotificationAt: null } 
+      return res.json({
+        status: "success",
+        stats: { unreadCount: 0, lastNotificationAt: null },
       });
     }
 
@@ -80,15 +80,19 @@ router.post("/:id/read", verifyToken, async (req: Request, res: Response) => {
 });
 
 // Mark all as read
-router.post("/mark-all-read", verifyToken, async (req: Request, res: Response) => {
-  try {
-    const uid = (req as any).uid;
-    await notificationService.markAllAsRead(uid);
-    return res.json({ status: "success" });
-  } catch (error: any) {
-    return res.status(500).json({ status: "error", message: error.message });
-  }
-});
+router.post(
+  "/mark-all-read",
+  verifyToken,
+  async (req: Request, res: Response) => {
+    try {
+      const uid = (req as any).uid;
+      await notificationService.markAllAsRead(uid);
+      return res.json({ status: "success" });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  },
+);
 
 // Archive a notification
 router.delete("/:id", verifyToken, async (req: Request, res: Response) => {
@@ -124,28 +128,34 @@ router.get("/stream", verifyToken, async (req: Request, res: Response) => {
       .doc("current");
 
     // Listen for stats changes (unread count)
-    const unsubscribeStats = statsRef.onSnapshot(doc => {
+    const unsubscribeStats = statsRef.onSnapshot((doc) => {
       if (doc.exists) {
-        res.write(`data: ${JSON.stringify({ type: 'stats', stats: doc.data() })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "stats", stats: doc.data() })}\n\n`,
+        );
       }
     });
 
     // Listen for recent notifications (no orderBy to avoid needing composite index)
     const unsubscribeNotifications = notificationsRef
       .where("archived", "==", false)
-      .onSnapshot(snap => {
+      .onSnapshot((snap) => {
         const notifications = snap.docs
-          .map(doc => ({
+          .map((doc) => ({
             id: doc.id,
             ...doc.data(),
           }))
           .sort((a: any, b: any) => {
-            const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
-            const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
+            const aTime =
+              a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
+            const bTime =
+              b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
             return bTime - aTime;
           })
           .slice(0, 10);
-        res.write(`data: ${JSON.stringify({ type: 'notifications', notifications })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "notifications", notifications })}\n\n`,
+        );
       });
 
     req.on("close", () => {

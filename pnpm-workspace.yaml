@@ -4,6 +4,13 @@ packages:
   - ml-service
   - scripts
 
+allowBuilds:
+  '@firebase/util': false
+  esbuild: false
+  protobufjs: false
+  sharp: false
+  unrs-resolver: false
+
 onlyBuiltDependencies:
   - '@firebase/util'
   - esbuild

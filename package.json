@@ -15,9 +15,9 @@
     "typescript",
     "monorepo"
   ],
-  "packageManager": "pnpm@10.33.2",
+  "packageManager": "pnpm@11.0.8",
   "engines": {
-    "node": "20.x"
+    "node": ">=22"
   },
   "workspaces": [
     "frontend",
@@ -32,14 +32,32 @@
     "test": "pnpm --filter backend test && pnpm --filter ml-service test",
     "clean": "pnpm --filter backend clean && pnpm --filter frontend clean && pnpm --filter ml-service clean",
     "install:all": "pnpm install",
-    "setup": "pnpm install:all && pnpm --filter backend install && pnpm --filter frontend install && pnpm --filter ml-service install"
+    "setup": "pnpm install:all && pnpm --filter backend install && pnpm --filter frontend install && pnpm --filter ml-service install",
+    "prepare": "husky",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "prettier . --write"
+  },
+  "lint-staged": {
+    "frontend/**/*.{ts,tsx,js,jsx}": [
+      "pnpm --filter frontend exec eslint --fix",
+      "prettier --write"
+    ],
+    "backend/**/*.{ts,js}": [
+      "pnpm --filter backend exec eslint --fix",
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.2",
     "nodemon": "^3.1.14",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "typescript": "^6.0.3"
   },
   "pnpm": {

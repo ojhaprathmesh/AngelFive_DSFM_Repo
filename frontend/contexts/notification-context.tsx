@@ -1,8 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useAuth } from "./auth-context";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
+
+import { useAuth } from "./auth-context";
 
 export interface Notification {
   id: string;
@@ -11,11 +19,11 @@ export interface Notification {
   title: string;
   message: string;
   category: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'unread' | 'read';
+  priority: "low" | "medium" | "high" | "critical";
+  status: "unread" | "read";
   metadata?: Record<string, any>;
   action?: {
-    type: 'navigate' | 'external';
+    type: "navigate" | "external";
     url: string;
   };
   createdAt: any;
@@ -39,22 +47,45 @@ interface NotificationContextType {
   refresh: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+const NotificationContext = createContext<NotificationContextType | undefined>(
+  undefined,
+);
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
+export function NotificationProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { firebaseUser } = useAuth();
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [stats, setStats] = useState<NotificationStats>({ unreadCount: 0, lastNotificationAt: null });
+  const [stats, setStats] = useState<NotificationStats>({
+    unreadCount: 0,
+    lastNotificationAt: null,
+  });
   const [loading, setLoading] = useState(true);
+
+  // Keep latest notifications available inside SSE callbacks
+  const notificationsRef = useRef<Notification[]>([]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   const fetchStats = useCallback(async () => {
     if (!firebaseUser) return;
+
     try {
       const token = await firebaseUser.getIdToken();
+
       const response = await fetch("/api/notifications/stats", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       const data = await response.json();
+
       if (data.status === "success") {
         setStats(data.stats);
       }
@@ -65,12 +96,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const fetchNotifications = useCallback(async () => {
     if (!firebaseUser) return;
+
     try {
       const token = await firebaseUser.getIdToken();
+
       const response = await fetch("/api/notifications", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       const data = await response.json();
+
       if (data.status === "success") {
         setNotifications(data.notifications);
       }
@@ -83,15 +120,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const markAsRead = async (id: string) => {
     if (!firebaseUser) return;
+
     try {
       const token = await firebaseUser.getIdToken();
+
       const response = await fetch(`/api/notifications/${id}/read`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       if (response.ok) {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: 'read' } : n));
-        setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, status: "read" } : n)),
+        );
+
+        setStats((prev) => ({
+          ...prev,
+          unreadCount: Math.max(0, prev.unreadCount - 1),
+        }));
       }
     } catch (error) {
       console.error("Error marking notification as read:", error);
@@ -100,15 +148,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const markAllAsRead = async () => {
     if (!firebaseUser) return;
+
     try {
       const token = await firebaseUser.getIdToken();
+
       const response = await fetch("/api/notifications/mark-all-read", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, status: 'read' })));
-        setStats(prev => ({ ...prev, unreadCount: 0 }));
+        setNotifications((prev) =>
+          prev.map((n) => ({
+            ...n,
+            status: "read",
+          })),
+        );
+
+        setStats((prev) => ({
+          ...prev,
+          unreadCount: 0,
+        }));
       }
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
@@ -117,17 +179,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const archiveNotification = async (id: string) => {
     if (!firebaseUser) return;
+
     try {
       const token = await firebaseUser.getIdToken();
+
       const response = await fetch(`/api/notifications/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       if (response.ok) {
-        const archivedNotification = notifications.find(n => n.id === id);
-        setNotifications(prev => prev.filter(n => n.id !== id));
-        if (archivedNotification?.status === 'unread') {
-          setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
+        const archivedNotification = notificationsRef.current.find(
+          (n) => n.id === id,
+        );
+
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+        if (archivedNotification?.status === "unread") {
+          setStats((prev) => ({
+            ...prev,
+            unreadCount: Math.max(0, prev.unreadCount - 1),
+          }));
         }
       }
     } catch (error) {
@@ -138,7 +212,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!firebaseUser) {
       setNotifications([]);
-      setStats({ unreadCount: 0, lastNotificationAt: null });
+      setStats({
+        unreadCount: 0,
+        lastNotificationAt: null,
+      });
       setLoading(false);
       return;
     }
@@ -146,55 +223,70 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     fetchStats();
     fetchNotifications();
 
-    // Set up SSE for real-time updates
     const controller = new AbortController();
 
     const setupSSE = async () => {
       try {
         const token = await firebaseUser.getIdToken();
-        const { fetchEventSource } = await import('@microsoft/fetch-event-source');
-        
-        await fetchEventSource('/api/notifications/stream', {
-          method: 'GET',
+
+        const { fetchEventSource } =
+          await import("@microsoft/fetch-event-source");
+
+        await fetchEventSource("/api/notifications/stream", {
+          method: "GET",
+
           headers: {
             Authorization: `Bearer ${token}`,
-            Accept: 'text/event-stream',
+            Accept: "text/event-stream",
           },
+
           signal: controller.signal,
+
           onmessage(event) {
             try {
               const data = JSON.parse(event.data);
-              if (data.type === 'stats') {
+
+              if (data.type === "stats") {
                 setStats(data.stats);
-              } else if (data.type === 'notifications') {
-                // Check for new notifications to show toast
+              } else if (data.type === "notifications") {
+                // Detect new unread notifications
                 const newNotifications = data.notifications.filter(
-                  (n: Notification) => !notifications.some(existing => existing.id === n.id) && n.status === 'unread'
+                  (n: Notification) =>
+                    !notificationsRef.current.some(
+                      (existing) => existing.id === n.id,
+                    ) && n.status === "unread",
                 );
-                
+
                 if (newNotifications.length > 0) {
                   newNotifications.forEach((n: Notification) => {
                     toast(n.title, {
                       description: n.message,
-                      action: n.action ? {
-                        label: "View",
-                        onClick: () => window.location.href = n.action!.url
-                      } : undefined
+
+                      action: n.action
+                        ? {
+                            label: "View",
+                            onClick: () => {
+                              window.location.href = n.action!.url;
+                            },
+                          }
+                        : undefined,
                     });
                   });
                 }
-                
+
                 setNotifications(data.notifications);
               }
             } catch (err) {
               console.error("Error parsing SSE data:", err);
             }
           },
+
           onerror(err) {
             console.error("SSE Error:", err);
-            // Throwing triggers the automatic reconnect logic in fetchEventSource
+
+            // Throwing triggers automatic reconnect
             throw err;
-          }
+          },
         });
       } catch (error) {
         console.error("Error setting up notification SSE:", error);
@@ -207,7 +299,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       controller.abort();
     };
   }, [firebaseUser, fetchNotifications, fetchStats]);
-
 
   const value = {
     notifications,
@@ -228,8 +319,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
 export function useNotifications() {
   const context = useContext(NotificationContext);
+
   if (context === undefined) {
-    throw new Error("useNotifications must be used within a NotificationProvider");
+    throw new Error(
+      "useNotifications must be used within a NotificationProvider",
+    );
   }
+
   return context;
 }

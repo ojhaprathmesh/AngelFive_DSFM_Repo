@@ -28,12 +28,10 @@
 const RETRY_DELAYS_MS = [10_000, 20_000, 30_000]; // 10 s, 20 s, 30 s
 
 export class MlServiceError extends Error {
-    constructor(
-        message: string,
-    ) {
-        super(message);
-        this.name = "MlServiceError";
-    }
+  constructor(message: string) {
+    super(message);
+    this.name = "MlServiceError";
+  }
 }
 
 /**
@@ -44,63 +42,61 @@ export class MlServiceError extends Error {
  * there is no point retrying a bad-request or auth error.
  */
 export async function mlFetch(
-    url: string,
-    options: RequestInit = {},
+  url: string,
+  options: RequestInit = {},
 ): Promise<Response> {
-    // Ensure Content-Type is always set for POST/PUT bodies
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(options.headers as Record<string, string> | undefined),
-    };
+  // Ensure Content-Type is always set for POST/PUT bodies
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
 
-    const reqOptions: RequestInit = { ...options, headers };
+  const reqOptions: RequestInit = { ...options, headers };
 
-    let lastError: Error = new MlServiceError("ML service unavailable");
-    let nonRetryableError: MlServiceError | undefined;
+  let lastError: Error = new MlServiceError("ML service unavailable");
+  let nonRetryableError: MlServiceError | undefined;
 
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-        try {
-            const resp = await fetch(url, reqOptions);
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const resp = await fetch(url, reqOptions);
 
-            if (resp.ok) {
-                return resp;
-            }
+      if (resp.ok) {
+        return resp;
+      }
 
-            // Don't retry client errors (except 429 Too Many Requests).
-            if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
-                const body = await resp.text();
-                nonRetryableError = new MlServiceError(
-                    `ML service returned ${resp.status}: ${body}`,
-                );
-                break;
-            }
+      // Don't retry client errors (except 429 Too Many Requests).
+      if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
+        const body = await resp.text();
+        nonRetryableError = new MlServiceError(
+          `ML service returned ${resp.status}: ${body}`,
+        );
+        break;
+      }
 
-            // Server error (5xx) or 429 — worth retrying
-            lastError = new MlServiceError(
-                `ML service returned HTTP ${resp.status}`,
-            );
-            console.warn(
-                `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} failed with HTTP ${resp.status} for ${url}`,
-            );
-        } catch (e: unknown) {
-            lastError = e instanceof Error ? e : new Error(String(e));
-            console.warn(
-                `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} threw: ${lastError.message} for ${url}`,
-            );
-        }
-
-        if (attempt < RETRY_DELAYS_MS.length) {
-            const delay = RETRY_DELAYS_MS[attempt];
-            console.log(`[mlFetch] Retrying in ${delay / 1000}s... (${url})`);
-            await new Promise((r) => setTimeout(r, delay));
-        }
+      // Server error (5xx) or 429 — worth retrying
+      lastError = new MlServiceError(`ML service returned HTTP ${resp.status}`);
+      console.warn(
+        `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} failed with HTTP ${resp.status} for ${url}`,
+      );
+    } catch (e: unknown) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.warn(
+        `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} threw: ${lastError.message} for ${url}`,
+      );
     }
 
-    if (nonRetryableError) {
-        throw nonRetryableError;
+    if (attempt < RETRY_DELAYS_MS.length) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      console.log(`[mlFetch] Retrying in ${delay / 1000}s... (${url})`);
+      await new Promise((r) => setTimeout(r, delay));
     }
+  }
 
-    throw new MlServiceError(
-        `ML service unavailable after ${RETRY_DELAYS_MS.length + 1} attempts (delays: ${RETRY_DELAYS_MS.map((d) => d / 1000 + "s").join(", ")}). Last error: ${lastError.message}`,
-    );
+  if (nonRetryableError) {
+    throw nonRetryableError;
+  }
+
+  throw new MlServiceError(
+    `ML service unavailable after ${RETRY_DELAYS_MS.length + 1} attempts (delays: ${RETRY_DELAYS_MS.map((d) => d / 1000 + "s").join(", ")}). Last error: ${lastError.message}`,
+  );
 }

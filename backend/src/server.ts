@@ -3,9 +3,9 @@ dotenv.config();
 
 import cors from "cors";
 import express, { Express, NextFunction, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
 
 import { ENV } from "./config/env";
 import authRouter from "./routes/auth";
@@ -18,7 +18,6 @@ import { notificationService } from "./services/notification";
 // Explicitly reference notificationService to ensure it's initialized and listeners are attached
 const _ = notificationService;
 
-
 const app: Express = express();
 const PORT = ENV.PORT;
 
@@ -27,37 +26,37 @@ const PORT = ENV.PORT;
 /* -------------------------------------------------------------------------- */
 
 const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://angelfive.vercel.app",
-    ...ENV.FRONTEND_URL.split(",").map((u) => u.trim()),
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://angelfive.vercel.app",
+  ...ENV.FRONTEND_URL.split(",").map((u) => u.trim()),
 ];
 
 // Regex patterns for dynamic preview URLs (e.g. Vercel per-branch deployments)
 const allowedOriginPatterns = [
-    /^https:\/\/angelfive(-[a-z0-9-]+)?\.vercel\.app$/,
+  /^https:\/\/angelfive(-[a-z0-9-]+)?\.vercel\.app$/,
 ];
 
 app.use(
-    cors({
-        origin: function (origin, callback) {
-            // Allow requests with no origin (mobile apps, Postman, curl)
-            if (!origin) return callback(null, true);
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
 
-            if (
-                allowedOrigins.includes(origin) ||
-                allowedOriginPatterns.some((re) => re.test(origin))
-            ) {
-                return callback(null, true);
-            }
+      if (
+        allowedOrigins.includes(origin) ||
+        allowedOriginPatterns.some((re) => re.test(origin))
+      ) {
+        return callback(null, true);
+      }
 
-            console.warn("Blocked by CORS:", origin);
-            return callback(new Error("Not allowed by CORS"));
-        },
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-        credentials: true,
-    }),
+      console.warn("Blocked by CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
 );
 
 // Handle preflight explicitly
@@ -78,29 +77,38 @@ app.use(express.urlencoded({ extended: true }));
 
 // Global API rate limiter (100 requests per minute)
 const apiLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { status: "error", message: "Too many requests, please try again later." },
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "error",
+    message: "Too many requests, please try again later.",
+  },
 });
 
 // Strict rate limiter for Auth (10 requests per 15 minutes)
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { status: "error", message: "Too many authentication attempts, please try again later." },
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "error",
+    message: "Too many authentication attempts, please try again later.",
+  },
 });
 
 // Moderate rate limiter for Compute-heavy DSFM routes (20 requests per minute)
 const dsfmLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { status: "error", message: "Too many compute requests, please try again later." },
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "error",
+    message: "Too many compute requests, please try again later.",
+  },
 });
 
 /* -------------------------------------------------------------------------- */
@@ -114,7 +122,6 @@ app.use("/api/market", marketRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/watchlists", watchlistRouter);
 
-
 /* -------------------------------------------------------------------------- */
 /*                             BASIC & HEALTH ROUTES                          */
 /* -------------------------------------------------------------------------- */
@@ -122,45 +129,45 @@ let mlStatus: "ok" | "down" | "unknown" = "unknown";
 let lastChecked: number | null = null;
 
 app.get("/", (_req: Request, res: Response) => {
-    res.status(200).json({
-        status: "success",
-        message: "Welcome to AngelFive Backend API",
-        timestamp: new Date().toISOString(),
-        version: "1.0.0",
-    });
+  res.status(200).json({
+    status: "success",
+    message: "Welcome to AngelFive Backend API",
+    timestamp: new Date().toISOString(),
+    version: "1.0.0",
+  });
 });
 
 app.get("/health", (_req: Request, res: Response) => {
-    // Respond immediately
-    res.status(200).json({
-        status: "ok",
-        services: {
-            backend: "ok",
-            ml: mlStatus
-        },
-        lastMlCheck: lastChecked
-    });
+  // Respond immediately
+  res.status(200).json({
+    status: "ok",
+    services: {
+      backend: "ok",
+      ml: mlStatus,
+    },
+    lastMlCheck: lastChecked,
+  });
 
-    // Background ML health check
-    void (async () => {
-        try {
-            const resp = await fetch(`${ENV.ML_SERVICE_URL}/health`);
-            mlStatus = resp.ok ? "ok" : "down";
-        } catch {
-            mlStatus = "down";
-        } finally {
-            lastChecked = Date.now();
-        }
-    })(); // Immediately Invoked Async Arrow Function (IIFE)
+  // Background ML health check
+  void (async () => {
+    try {
+      const resp = await fetch(`${ENV.ML_SERVICE_URL}/health`);
+      mlStatus = resp.ok ? "ok" : "down";
+    } catch {
+      mlStatus = "down";
+    } finally {
+      lastChecked = Date.now();
+    }
+  })(); // Immediately Invoked Async Arrow Function (IIFE)
 });
 
 app.get("/api/test", (req: Request, res: Response) => {
-    res.status(200).json({
-        message: "API is working correctly",
-        method: req.method,
-        path: req.path,
-        timestamp: new Date().toISOString(),
-    });
+  res.status(200).json({
+    message: "API is working correctly",
+    method: req.method,
+    path: req.path,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -168,12 +175,12 @@ app.get("/api/test", (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 app.use("*", (req: Request, res: Response) => {
-    res.status(404).json({
-        status: "error",
-        message: "Route not found",
-        path: req.originalUrl,
-        timestamp: new Date().toISOString(),
-    });
+  res.status(404).json({
+    status: "error",
+    message: "Route not found",
+    path: req.originalUrl,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -181,16 +188,16 @@ app.use("*", (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("❌ Server Error:", err.message);
+  console.error("❌ Server Error:", err.message);
 
-    res.status(500).json({
-        status: "error",
-        message: "Internal server error",
-        ...(ENV.NODE_ENV === "development" && {
-            error: err.message,
-        }),
-        timestamp: new Date().toISOString(),
-    });
+  res.status(500).json({
+    status: "error",
+    message: "Internal server error",
+    ...(ENV.NODE_ENV === "development" && {
+      error: err.message,
+    }),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -198,9 +205,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 /* -------------------------------------------------------------------------- */
 
 app.listen(PORT, () => {
-    console.log("=================================");
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${ENV.NODE_ENV}`);
-    console.log(`🌐 Health: /health`);
-    console.log("=================================");
+  console.log("=================================");
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${ENV.NODE_ENV}`);
+  console.log(`🌐 Health: /health`);
+  console.log("=================================");
 });

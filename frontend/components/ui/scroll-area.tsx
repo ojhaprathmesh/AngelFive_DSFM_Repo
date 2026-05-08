@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 interface ScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -12,7 +13,7 @@ const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
     return (
       <div
         ref={ref}
-        className={cn("relative overflow-auto custom-scrollbar", className)}
+        className={cn("custom-scrollbar relative overflow-auto", className)}
         {...props}
       >
         {children}
@@ -40,7 +41,7 @@ const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
         `}</style>
       </div>
     );
-  }
+  },
 );
 ScrollArea.displayName = "ScrollArea";
 
