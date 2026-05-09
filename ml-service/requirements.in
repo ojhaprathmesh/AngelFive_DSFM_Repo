@@ -2,6 +2,7 @@
 flask
 flask-cors
 gunicorn
+uvicorn
 python-dotenv
 
 # Data science

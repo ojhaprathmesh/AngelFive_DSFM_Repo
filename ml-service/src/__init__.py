@@ -78,7 +78,8 @@ def create_app():
     app.register_blueprint(dsfm_bp)
 
     # Warm FinBERT in background to avoid first-request timeout from proxy/UI.
-    should_start_warmup = not Config.DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+    # Disabled on low-RAM environments (like Render Free) to prevent OOM restart loops.
+    should_start_warmup = Config.WARMUP_ENABLED and (not Config.DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
     if should_start_warmup:
         threading.Thread(target=warmup_finbert_model, daemon=True).start()
 

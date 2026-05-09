@@ -5,11 +5,12 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 RUN corepack enable pnpm
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --ignore-scripts
+RUN pnpm rebuild esbuild protobufjs @firebase/util
 
 COPY . .
-RUN pnpm build
+RUN pnpm tsc --build tsconfig.docker.json --force
 
 # Stage 2: Runtime
 FROM node:22-alpine AS runner
@@ -23,8 +24,8 @@ ENV PORT 5000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 backend
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --prod --ignore-scripts
 
 COPY --from=builder --chown=backend:nodejs /app/dist ./dist
 

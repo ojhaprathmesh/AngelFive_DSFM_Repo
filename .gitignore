@@ -18,8 +18,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-venv/
-env/
 .pytest_cache/
 .ipynb_checkpoints/
 *.log
@@ -35,6 +33,7 @@ scripts/
 .env.test.local
 .env.production.local
 **firebase-adminsdk**
+!.env.example
 
 # OS specific
 .DS_Store

@@ -8,8 +8,9 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable pnpm
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --ignore-scripts
+RUN pnpm rebuild esbuild
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
