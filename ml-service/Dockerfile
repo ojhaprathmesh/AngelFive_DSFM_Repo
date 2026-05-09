@@ -5,9 +5,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PORT 8000
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
 
 # Install dependencies needed for compiling native packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -36,5 +36,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Run with gunicorn and uvicorn workers
-CMD ["gunicorn", "app:app", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120"]
+# Production: gunicorn with uvicorn workers (config in gunicorn.conf.py)
+CMD ["gunicorn", "app:app", "--config", "gunicorn.conf.py"]

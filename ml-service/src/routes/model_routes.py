@@ -1,9 +1,10 @@
 from datetime import datetime
+from typing import Any
 
-from flask import Blueprint, jsonify
+from fastapi import APIRouter
 
 
-models_bp = Blueprint("models", __name__)
+router = APIRouter(tags=["Models"])
 
 AVAILABLE_MODELS = {
     "LSTM": {"type": "deep-learning", "framework": "PyTorch"},
@@ -14,21 +15,16 @@ AVAILABLE_MODELS = {
 }
 
 
-@models_bp.route("/models", methods=["GET"])
-def get_available_models():
-    return (
-        jsonify(
-            {
-                "status": "success",
-                "message": "Available models retrieved successfully",
-                "data": {
-                    "models": AVAILABLE_MODELS,
-                    "count": len(AVAILABLE_MODELS),
-                    "supported_symbols": ["SENSEX", "NIFTY50"],
-                },
-                "timestamp": datetime.now().isoformat(),
-                "service": "ml-service",
-            }
-        ),
-        200,
-    )
+@router.get("/models")
+def get_available_models() -> dict[str, Any]:
+    return {
+        "status": "success",
+        "message": "Available models retrieved successfully",
+        "data": {
+            "models": AVAILABLE_MODELS,
+            "count": len(AVAILABLE_MODELS),
+            "supported_symbols": ["SENSEX", "NIFTY50"],
+        },
+        "timestamp": datetime.now().isoformat(),
+        "service": "ml-service",
+    }

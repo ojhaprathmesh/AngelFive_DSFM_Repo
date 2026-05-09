@@ -1,86 +1,53 @@
-import json
 import logging
-import os
 import threading
-import traceback
-from datetime import datetime
+from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import Config
-from src.routes.dsfm_routes import dsfm_bp
-from src.routes.forecast_routes import forecast_bp
-from src.routes.health_routes import health_bp
-from src.routes.model_routes import models_bp
+from src.routes.dsfm_routes import router as dsfm_router
+from src.routes.forecast_routes import router as forecast_router
+from src.routes.health_routes import router as health_router
+from src.routes.model_routes import router as models_router
 from src.services.sentiment_service import warmup_finbert_model
 
 
-load_dotenv()
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
-def create_app():
-    app = Flask(__name__)
-    CORS(app, origins=Config.CORS_ORIGINS)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start FinBERT warmup in background on startup."""
+    logger.info("🚀 Starting AngelFive ML Service")
+    threading.Thread(target=warmup_finbert_model, daemon=True).start()
+    yield
+    logger.info("🛑 Shutting down AngelFive ML Service")
 
-    @app.before_request
-    def log_request():
-        logger.info("📥 %s %s - IP: %s", request.method, request.path, request.remote_addr)
-        if request.is_json and request.get_json(silent=True):
-            logger.info("Request body: %s", json.dumps(request.get_json(), indent=2))
 
-    @app.after_request
-    def log_response(response):
-        logger.info("📤 %s %s - Status: %s", request.method, request.path, response.status_code)
-        return response
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="AngelFive ML Service",
+        description="DSFM analytics, forecasting, and sentiment inference API",
+        version="3.0.0",
+        lifespan=lifespan,
+    )
 
-    @app.errorhandler(Exception)
-    def handle_exception(error):
-        logger.error("Unhandled exception: %s", str(error))
-        logger.error(traceback.format_exc())
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "code": 500,
-                    "message": "Internal server error",
-                    "details": str(error) if Config.DEBUG else "An unexpected error occurred",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": "ml-service",
-                }
-            ),
-            500,
-        )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=Config.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    @app.errorhandler(404)
-    def handle_not_found(_error):
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "code": 404,
-                    "message": "Endpoint not found",
-                    "details": f"The requested endpoint '{request.path}' does not exist",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": "ml-service",
-                }
-            ),
-            404,
-        )
-
-    app.register_blueprint(health_bp)
-    app.register_blueprint(forecast_bp)
-    app.register_blueprint(models_bp)
-    app.register_blueprint(dsfm_bp)
-
-    # Warm FinBERT in background to avoid first-request timeout from proxy/UI.
-    # Disabled on low-RAM environments (like Render Free) to prevent OOM restart loops.
-    should_start_warmup = Config.WARMUP_ENABLED and (not Config.DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
-    if should_start_warmup:
-        threading.Thread(target=warmup_finbert_model, daemon=True).start()
+    app.include_router(health_router)
+    app.include_router(forecast_router)
+    app.include_router(models_router)
+    app.include_router(dsfm_router, prefix="/dsfm")
 
     return app

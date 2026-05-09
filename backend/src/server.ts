@@ -19,6 +19,8 @@ import { notificationService } from "./services/notification";
 const _ = notificationService;
 
 const app: Express = express();
+// Trust the first proxy (Render load balancer) to correctly identify client IPs for rate limiting
+app.set("trust proxy", 1);
 const PORT = ENV.PORT;
 
 /* -------------------------------------------------------------------------- */
