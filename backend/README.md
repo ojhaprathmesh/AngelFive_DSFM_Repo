@@ -12,8 +12,9 @@ Express API gateway and orchestration layer for the AngelFive DSFM platform. Act
 | Security | `helmet`, `cors`, `express-rate-limit`, `express-validator` |
 | Market APIs | AngelOne SmartAPI, NSE, Yahoo Finance |
 | Logging | `morgan` |
+| Caching | `ioredis` (Distributed) with local LRU fallback |
 | OTP | `speakeasy` (TOTP for SmartAPI auth) |
-| Process | `nodemon` / `tsx` (dev), `node dist/server.js` (prod) |
+| Process | `nodemon -L` / `tsx` (dev), `node dist/server.js` (prod) |
 
 ## Prerequisites
 
@@ -68,7 +69,7 @@ backend/
 │   ├── services/
 │   │   ├── event-emitter.ts    # Singleton AppEventEmitter (domain event bus)
 │   │   ├── notification.ts     # NotificationService (Firestore persistence + dedup)
-│   │   └── cache.ts            # In-memory SWR cache
+│   │   └── cache.ts            # Distributed Redis cache with local SWR fallback
 │   ├── lib/
 │   │   ├── smartapi.ts         # SmartAPI client with TOTP auth
 │   │   └── nse.ts              # NSE scraper with cookie bootstrap
@@ -119,7 +120,7 @@ Multi-stage Dockerfile with two targets:
 2. **runner** — production Alpine image with only production deps + compiled JS
 
 ```bash
-# Development (hot-reload via volume mount)
+# Development (hot-reload via volume mount with nodemon legacy watch)
 docker compose -f docker-compose.dev.yml up backend
 
 # Production

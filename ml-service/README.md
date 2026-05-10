@@ -6,7 +6,7 @@ Python-based ML and statistical inference engine for the AngelFive DSFM platform
 
 | Layer | Technology |
 |---|---|
-| Framework | Flask + Flask-CORS |
+| Framework | FastAPI + Pydantic |
 | Production Server | Gunicorn + Uvicorn workers |
 | Language | Python 3.11 |
 | Deep Learning | PyTorch (CPU) |
@@ -65,9 +65,9 @@ The service runs on `http://localhost:8000` by default.
 
 ```text
 ml-service/
-├── app.py                      # Entry point (imports Flask app from src)
+├── app.py                      # Entry point (runs FastAPI app with Uvicorn)
 ├── src/
-│   ├── __init__.py             # Flask app factory, error handlers, warmup thread
+│   ├── __init__.py             # FastAPI app initialization and lifespan manager
 │   ├── config.py               # Environment configuration
 │   ├── routes/
 │   │   ├── dsfm_routes.py      # DSFM endpoints (ADF, ACF/PACF, ARIMA, GARCH, LSTM)
@@ -109,7 +109,7 @@ ml-service/
 Models are loaded lazily on first request via singleton loaders with thread locks:
 
 - **FinBERT**: `ProsusAI/finbert` — downloaded from HuggingFace on first use, cached in `model_cache/`
-- **LSTM**: Custom PyTorch module loaded from `safetensors` format (fallback to `.pth`)
+- **LSTM**: Custom PyTorch module loaded strictly from secure `safetensors` format.
 
 A background warmup thread pre-loads FinBERT at app startup to minimize cold-start latency.
 

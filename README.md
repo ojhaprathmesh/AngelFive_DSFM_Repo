@@ -5,7 +5,7 @@
 
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![Express](https://img.shields.io/badge/Backend-Express.js-blue?style=flat-square&logo=express)](https://expressjs.com/)
-[![FastAPI](https://img.shields.io/badge/ML--Service-FastAPI-lightgrey?style=flat-square&logo=FastAPI)](https://flask.palletsprojects.com/)
+[![FastAPI](https://img.shields.io/badge/ML--Service-FastAPI-009688?style=flat-square&logo=FastAPI)](https://fastapi.tiangolo.com/)
 [![PyTorch](https://img.shields.io/badge/ML-PyTorch%20%7C%20HuggingFace-EE4C2C?style=flat-square&logo=pytorch)](https://pytorch.org/)
 
 **AngelFive** is a production-ready financial analytics platform that bridges the gap between raw market data and actionable quantitative insights.
@@ -31,7 +31,7 @@ Retail investors typically lack access to institutional-grade tools used by hedg
 
 ## ✨ Key Highlights
 
-* 🧠 **Full-stack microservices architecture** (Next.js + Express + Flask)
+* 🧠 **Full-stack microservices architecture** (Next.js + Express + FastAPI)
 * 📊 **Real-time + historical data integration** (AngelOne SmartAPI + Yahoo Finance)
 * 🤖 **Production-grade ML models** (FinBERT, LSTM, GARCH)
 * ⚖️ **Institutional portfolio optimization** (Efficient Frontier + Black-Litterman)
@@ -90,10 +90,10 @@ graph TD
         Router --> Auth
         Router --> Orch
         Router --> MarketSvc
-        Orch <-->|Token Lookup| Cache
+        Orch <-->|Distributed Cache| Cache
     end
 
-    subgraph "ML Service (Flask/Python)"
+    subgraph "ML Service (FastAPI/Python)"
         ML_API[ML API Layer]
         Optim[MPT & Black-Litterman Optimizer]
         TS[ARIMA / GARCH / LSTM Models]
@@ -125,22 +125,19 @@ graph TD
 
 ### Architecture Breakdown
 
-1. **Frontend (Next.js 15 + React 19)**
-
+1. **Frontend (Next.js 16 + React 19)**
    * Handles UI, state management, and data visualization
    * Uses SVG/chart rendering for financial graphs
    * Maintains global state via React contexts
 
-2. **Backend (Express.js)**
-
+2. **Backend (Express.js + Redis)**
    * Acts as API gateway and orchestration layer
    * Handles authentication via Firebase Admin SDK
-   * Manages caching and external API coordination
+   * Manages distributed caching (`ioredis`) and external API coordination
 
-3. **ML Service (Flask + Python)**
-
+3. **ML Service (FastAPI + Python)**
    * Dedicated compute layer for heavy analytics
-   * Runs statistical models and ML inference
+   * Runs statistical models and ML inference via Pydantic-validated endpoints
    * Prevents blocking Node.js event loop
 
 ---
@@ -148,17 +145,13 @@ graph TD
 ## 🚦 Quickstart
 
 ### 1. Prerequisites
-
-* Node.js (v20+ recommended)
-* Python (3.10+)
-* pnpm or npm
+* Docker & Docker Desktop (Windows/Mac)
+* Node.js (v20+) & pnpm (v11)
 
 ---
 
 ### 2. Environment Setup
-
-Create `.env` files:
-
+Create `.env` files based on the `.env.example` files in each workspace:
 ```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
@@ -167,37 +160,29 @@ cp ml-service/.env.example ml-service/.env
 
 ---
 
-### 3. Installation
+### 3. Run with Docker Compose (Recommended)
+The entire monorepo is containerized for seamless development and production parity.
 
 ```bash
-# Backend
-cd backend && pnpm install
-
-# Frontend
-cd ../frontend && pnpm install
-
-# ML Service
-cd ../ml-service
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-uv pip install -r requirements.txt
+docker compose -f docker-compose.dev.yml up --build
 ```
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:5000`
+- ML Service: `http://localhost:8000`
+- Redis: `localhost:6379`
 
----
-
-### 4. Run the Platform
-
-Start all services:
-
+### 4. Run Locally (Manual)
+If you prefer running outside of Docker:
 ```bash
-# ML Service
-python app.py  # http://localhost:8000
+pnpm install
+pnpm dev:backend
+pnpm dev:frontend
 
-# Backend
-pnpm dev       # http://localhost:5000
-
-# Frontend
-pnpm dev       # http://localhost:3000
+# In a separate terminal
+cd ml-service
+uv venv && source .venv/bin/activate
+uv pip install -r requirements.txt
+fastapi dev src/app.py
 ```
 
 ---
@@ -210,7 +195,7 @@ pnpm dev       # http://localhost:3000
 * `GET /api/watchlist` → Fetch user watchlist
 * `POST /api/watchlist` → Update watchlist
 
-### ML Service (Flask)
+### ML Service (FastAPI)
 
 * `POST /dsfm/sentiment/finbert` → Sentiment analysis
 * `POST /dsfm/forecast` → Time-series forecasting
@@ -221,17 +206,16 @@ pnpm dev       # http://localhost:3000
 
 ## 🧠 Design Decisions & Trade-offs
 
-* **Flask over FastAPI**
-  Chosen for simplicity and strong compatibility with PyTorch ecosystem
-
+* **FastAPI over Flask**
+  Migrated for native async support, automated OpenAPI docs, and strict Pydantic validation.
 * **Microservice Separation**
-  ML workloads isolated to prevent blocking Node.js event loop
-
-* **SSE over WebSockets**
-  Lightweight real-time updates without persistent connection overhead
-
+  ML workloads isolated to prevent blocking the single-threaded Node.js event loop.
+* **Docker Containerization**
+  Guarantees environment parity and solves complex Python/Node dependency cross-contamination.
 * **Safetensors vs Pickle**
-  Prevents arbitrary code execution from model loading
+  Prevents arbitrary code execution vulnerabilities when loading PyTorch model weights.
+* **Redis Distributed Caching**
+  Replaced process-local memory caching to enable future horizontal scaling of the Express gateway.
 
 ---
 
