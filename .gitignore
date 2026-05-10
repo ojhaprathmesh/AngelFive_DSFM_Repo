@@ -10,6 +10,7 @@ node_modules/
 out/
 dist/
 .turbo/
+.pnpm-store/
 **.tsbuildinfo
 next-env.d.ts
 

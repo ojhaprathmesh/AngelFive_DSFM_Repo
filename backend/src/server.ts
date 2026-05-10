@@ -8,6 +8,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import { ENV } from "./config/env";
+import { getRedisStatus } from "./lib/redis";
 import authRouter from "./routes/auth";
 import dsfmRouter from "./routes/dsfm";
 import marketRouter from "./routes/market";
@@ -140,17 +141,24 @@ app.get("/", (_req: Request, res: Response) => {
 });
 
 app.get("/health", (_req: Request, res: Response) => {
-  // Respond immediately
+  const redis = getRedisStatus();
+
+  // Respond immediately with last-known status
   res.status(200).json({
     status: "ok",
     services: {
       backend: "ok",
       ml: mlStatus,
+      redis: redis.status,
+    },
+    redis: {
+      status: redis.status,
+      latencyMs: redis.latencyMs,
     },
     lastMlCheck: lastChecked,
   });
 
-  // Background ML health check
+  // Background ML health check (non-blocking)
   void (async () => {
     try {
       const resp = await fetch(`${ENV.ML_SERVICE_URL}/health`);
@@ -160,7 +168,7 @@ app.get("/health", (_req: Request, res: Response) => {
     } finally {
       lastChecked = Date.now();
     }
-  })(); // Immediately Invoked Async Arrow Function (IIFE)
+  })();
 });
 
 app.get("/api/test", (req: Request, res: Response) => {

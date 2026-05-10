@@ -10,7 +10,7 @@ RUN pnpm install --ignore-scripts
 RUN pnpm rebuild esbuild protobufjs @firebase/util
 
 COPY . .
-RUN pnpm tsc --build tsconfig.docker.json --force
+RUN npx tsc --build tsconfig.docker.json --force
 
 # Stage 2: Runtime
 FROM node:22-alpine AS runner

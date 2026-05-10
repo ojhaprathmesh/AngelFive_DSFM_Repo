@@ -76,7 +76,7 @@ async function fetchDiscoveryData() {
 router.get("/discovery", async (_req: Request, res: Response) => {
   try {
     const data = await swrCache.get(
-      "discovery",
+      "market:discovery",
       fetchDiscoveryData,
       TTL.DISCOVERY,
     );
@@ -277,7 +277,7 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const tf = String(req.query.tf || "1M");
-      const cacheKey = `performers:${tf}`;
+      const cacheKey = `market:performers:${tf}`;
       const performers = await swrCache.get(
         cacheKey,
         () => fetchPerformersData(tf),
@@ -518,7 +518,7 @@ router.get(
 
 async function loadInstrumentMaster(): Promise<any[]> {
   return swrCache.get(
-    "instrument-master",
+    "market:instrument_master",
     async () => {
       try {
         const resp = await fetch(
@@ -651,7 +651,7 @@ router.get(
       const isIntraday = intradayIntervals.includes(interval.toUpperCase());
       const ttl = isIntraday ? TTL.CHART_INTRADAY : TTL.CHART_HISTORICAL;
 
-      const cacheKey = `candles:${exchange}:${symbolToken}:${interval}:${fromDate}:${toDate}`;
+      const cacheKey = `market:candles:${exchange}:${symbolToken}:${interval}:${fromDate}:${toDate}`;
       const candles = await swrCache.get(
         cacheKey,
         () =>
@@ -816,18 +816,18 @@ router.get("/cache-status", verifyToken, (_req: Request, res: Response) => {
   res.json({ entries: swrCache.status() });
 });
 
-// Clear cache — DELETE /api/market/cache?key=performers:1W  (single key)
-//               DELETE /api/market/cache?prefix=candles:    (all candle keys)
-//               DELETE /api/market/cache                    (everything)
-router.delete("/cache", verifyToken, (_req: Request, res: Response) => {
+// Clear cache — DELETE /api/market/cache?key=market:performers:1W  (single key)
+//               DELETE /api/market/cache?prefix=market:candles:    (all candle keys)
+//               DELETE /api/market/cache                           (everything)
+router.delete("/cache", verifyToken, async (_req: Request, res: Response) => {
   const key = String(_req.query.key || "").trim();
   const prefix = String(_req.query.prefix || "").trim();
 
   if (key) {
-    const deleted = swrCache.delete(key);
+    const deleted = await swrCache.delete(key);
     res.json({ cleared: deleted ? 1 : 0, key });
   } else {
-    const count = swrCache.clear(prefix || undefined);
+    const count = await swrCache.clear(prefix || undefined);
     res.json({ cleared: count, prefix: prefix || "*" });
   }
 });

@@ -5,12 +5,18 @@ services:
       dockerfile: Dockerfile
       target: deps
     # Override command to run the dev server instead of production server
-    command: sh -c "pnpm install && pnpm dev"
+    command: sh -c "pnpm install --ignore-scripts --config.confirmModulesPurge=false && pnpm dev"
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_BACKEND_URL=http://backend:5000
+      # Used by browser-side fetches from host machine
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
+      # Used by Next.js rewrites running inside the frontend container
+      - BACKEND_INTERNAL_URL=http://backend:5000
+      - NODE_OPTIONS=--no-warnings=DeprecationWarning
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     env_file:
       - ./frontend/.env
     volumes:
@@ -27,7 +33,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: builder
-    command: sh -c "pnpm install && pnpm dev"
+    command: sh -c "pnpm install --ignore-scripts --config.confirmModulesPurge=false && pnpm dev"
     ports:
       - "5000:5000"
     environment:
@@ -36,11 +42,13 @@ services:
       - FRONTEND_URL=http://localhost:3000,http://frontend:3000
       - ML_SERVICE_URL=http://ml-service:8000
       - REDIS_URL=redis://redis:6379
+      - NODE_OPTIONS=--no-warnings=DeprecationWarning
     env_file:
       - ./backend/.env
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - ./tsconfig.base.json:/tsconfig.base.json
     depends_on:
       redis:
         condition: service_healthy

@@ -15,7 +15,7 @@
     "typescript",
     "monorepo"
   ],
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@11.0.8",
   "engines": {
     "node": ">=22"
   },

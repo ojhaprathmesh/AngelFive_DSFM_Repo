@@ -8,6 +8,9 @@ interface Env {
   FRONTEND_URL: string;
   ML_SERVICE_URL: string;
 
+  // Redis
+  REDIS_URL: string;
+
   // Firebase Config
   FIREBASE_API_KEY: string;
   FIREBASE_AUTH_DOMAIN: string;
@@ -86,9 +89,14 @@ export const ENV: Env = {
   SMARTAPI_MAC_ADDRESS: requiredEnv("SMARTAPI_MAC_ADDRESS"),
 
   // Deployment URLs
-  FRONTEND_URL: isDev ? "http://localhost:3000" : requiredEnv("FRONTEND_URL"),
+  FRONTEND_URL:
+    process.env.FRONTEND_URL ||
+    (isDev ? "http://localhost:3000" : requiredEnv("FRONTEND_URL")),
 
-  ML_SERVICE_URL: isDev
-    ? "http://localhost:8000"
-    : requiredEnv("ML_SERVICE_URL"),
+  ML_SERVICE_URL:
+    process.env.ML_SERVICE_URL ||
+    (isDev ? "http://localhost:8000" : requiredEnv("ML_SERVICE_URL")),
+
+  // Redis — optional; falls back to localhost for local dev without Docker
+  REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
 };

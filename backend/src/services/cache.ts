@@ -1,29 +1,121 @@
 /**
- * SWR (Stale-While-Revalidate) Cache Service
+ * SWR (Stale-While-Revalidate) Cache Service — Redis-backed
  *
  * Strategy:
  *  - Serve stale cached data immediately on every request (fast response)
  *  - If the data is past its TTL, trigger a background revalidation
  *  - Next request will get the freshly revalidated data
  *
+ * Resilience:
+ *  - Redis is treated as an optimisation layer, NOT a hard dependency
+ *  - Any Redis failure falls back to a process-local in-memory Map
+ *  - Cache errors NEVER crash requests — they are silently swallowed
+ *
+ * Logging:
+ *  [CACHE] HIT   market:discovery           — served from cache (hot)
+ *  [CACHE] STALE market:discovery           — served stale, revalidating
+ *  [CACHE] MISS  market:discovery           — cold cache, fetching
+ *  [CACHE] SET   market:discovery ttl=60s   — stored to Redis
+ *  [CACHE] DEL   market:discovery           — deleted from Redis
+ *  [CACHE] CLR   market:*  count=3          — pattern cleared
+ *  [CACHE] ERROR <key> <message>            — Redis unavailable, using fallback
+ *
  * Usage:
- *   const cache = SWRCache.getInstance();
- *   const data = await cache.get("performers:1M", () => fetchPerformers("1M"), 60_000);
+ *   const data = await swrCache.get("market:discovery", fetchDiscovery, TTL.DISCOVERY);
  */
+
+import { getRedisClient, getRedisStatus } from "../lib/redis";
 
 type FetchFn<T> = () => Promise<T>;
 
-interface CacheEntry<T> {
+// ── In-memory fallback store ──────────────────────────────────────────────────
+
+interface MemEntry<T> {
   data: T;
   fetchedAt: number;
-  ttl: number;
+  ttl: number; // ms
   revalidating: boolean;
 }
 
+const memStore = new Map<string, MemEntry<any>>();
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function log(
+  tag: "HIT" | "STALE" | "MISS" | "SET" | "DEL" | "CLR" | "ERROR",
+  key: string,
+  extra = "",
+): void {
+  console.log(`[CACHE] ${tag.padEnd(5)} ${key}${extra ? "  " + extra : ""}`);
+}
+
+function isRedisAvailable(): boolean {
+  return getRedisStatus().status === "connected";
+}
+
+// ── Redis helpers (all catch-safe) ────────────────────────────────────────────
+
+async function redisGet<T>(
+  key: string,
+): Promise<{ data: T; fetchedAt: number; ttl: number } | null> {
+  try {
+    const raw = await getRedisClient().get(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as { data: T; fetchedAt: number; ttl: number };
+  } catch {
+    return null;
+  }
+}
+
+async function redisSet<T>(
+  key: string,
+  value: { data: T; fetchedAt: number; ttl: number },
+  ttlMs: number,
+): Promise<void> {
+  try {
+    const ttlSec = Math.ceil(ttlMs / 1000);
+    await getRedisClient().set(key, JSON.stringify(value), "EX", ttlSec);
+    log("SET", key, `ttl=${ttlSec}s`);
+  } catch (err: any) {
+    log("ERROR", key, err?.message ?? "redis set failed");
+  }
+}
+
+async function redisDel(key: string): Promise<boolean> {
+  try {
+    const count = await getRedisClient().del(key);
+    return count > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function redisScan(pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  try {
+    const client = getRedisClient();
+    let cursor = "0";
+    do {
+      const [nextCursor, batch] = await client.scan(
+        cursor,
+        "MATCH",
+        pattern,
+        "COUNT",
+        100,
+      );
+      keys.push(...batch);
+      cursor = nextCursor;
+    } while (cursor !== "0");
+  } catch {
+    // ignore — pattern delete degrades gracefully
+  }
+  return keys;
+}
+
+// ── SWR Cache Service ─────────────────────────────────────────────────────────
+
 class SWRCacheService {
   private static instance: SWRCacheService;
-
-  private store = new Map<string, CacheEntry<any>>();
 
   static getInstance(): SWRCacheService {
     if (!SWRCacheService.instance) {
@@ -33,113 +125,179 @@ class SWRCacheService {
   }
 
   /**
-   * Get data from cache using SWR strategy.
+   * Get data using SWR strategy — Redis primary, in-memory fallback.
    *
-   * @param key       - Unique cache key (e.g. "performers:1M", "candles:NSE:99926000:ONE_DAY")
-   * @param fetchFn   - Async function that fetches fresh data from the source
-   * @param ttlMs     - Time-to-live in milliseconds before data is considered stale
-   * @returns         - Cached (possibly stale) data, or freshly fetched data if cache is cold
+   * @param key     Namespaced cache key (e.g. "market:discovery")
+   * @param fetchFn Async supplier for fresh data
+   * @param ttlMs   Time-to-live in milliseconds
    */
   async get<T>(key: string, fetchFn: FetchFn<T>, ttlMs: number): Promise<T> {
-    const entry = this.store.get(key) as CacheEntry<T> | undefined;
+    const useRedis = isRedisAvailable();
 
-    // ── COLD CACHE: nothing stored yet → fetch and block ──────────────────
-    if (!entry) {
-      console.log(`[SWRCache] COLD  | ${key}`);
-      const data = await fetchFn();
-      this.store.set(key, {
-        data,
-        fetchedAt: Date.now(),
-        ttl: ttlMs,
-        revalidating: false,
-      });
+    // ── Try to load entry ────────────────────────────────────────────────────
+    let fetchedAt: number | undefined;
+    let data: T | undefined;
+    let isStale = true;
+    let revalidating = false;
+
+    if (useRedis) {
+      const entry = await redisGet<T>(key);
+      if (entry) {
+        fetchedAt = entry.fetchedAt;
+        data = entry.data;
+        isStale = Date.now() - entry.fetchedAt > entry.ttl;
+      }
+    } else {
+      // Fallback to in-memory
+      const entry = memStore.get(key) as MemEntry<T> | undefined;
+      if (entry) {
+        fetchedAt = entry.fetchedAt;
+        data = entry.data;
+        isStale = Date.now() - entry.fetchedAt > entry.ttl;
+        revalidating = entry.revalidating;
+      }
+    }
+
+    // ── COLD CACHE ────────────────────────────────────────────────────────────
+    if (data === undefined) {
+      log("MISS", key);
+      const fresh = await fetchFn();
+      await this._store(key, fresh, ttlMs, useRedis);
+      return fresh;
+    }
+
+    const ageSec =
+      fetchedAt !== undefined
+        ? ((Date.now() - fetchedAt) / 1000).toFixed(1)
+        : "?";
+
+    // ── HOT CACHE ─────────────────────────────────────────────────────────────
+    if (!isStale) {
+      log("HIT", key, `age=${ageSec}s`);
       return data;
     }
 
-    const age = Date.now() - entry.fetchedAt;
-    const isStale = age > entry.ttl;
+    // ── STALE — serve immediately, revalidate in background ───────────────────
+    log("STALE", key, `age=${ageSec}s → revalidating`);
 
-    // ── HOT CACHE: still fresh → return immediately ────────────────────────
-    if (!isStale) {
-      console.log(
-        `[SWRCache] HIT   | ${key} | age ${(age / 1000).toFixed(1)}s`,
-      );
-      return entry.data as T;
-    }
+    if (!revalidating) {
+      // Mark revalidating in mem store (Redis has no native revalidating flag)
+      if (!useRedis) {
+        const mem = memStore.get(key);
+        if (mem) mem.revalidating = true;
+      }
 
-    // ── STALE CACHE: serve old data, revalidate in background ─────────────
-    console.log(
-      `[SWRCache] STALE | ${key} | age ${(age / 1000).toFixed(1)}s → revalidating`,
-    );
-
-    if (!entry.revalidating) {
-      entry.revalidating = true;
-      // Fire and forget — do NOT await
+      // Fire-and-forget — do NOT await
       fetchFn()
-        .then((freshData) => {
-          this.store.set(key, {
-            data: freshData,
-            fetchedAt: Date.now(),
-            ttl: ttlMs,
-            revalidating: false,
-          });
-          console.log(`[SWRCache] FRESH | ${key} | revalidation complete`);
-        })
+        .then((fresh) => this._store(key, fresh, ttlMs, useRedis))
         .catch((err) => {
           console.error(
-            `[SWRCache] ERROR | ${key} | revalidation failed:`,
-            err,
+            `[CACHE] ERROR ${key}  revalidation failed:`,
+            err?.message ?? err,
           );
-          // Keep stale data, allow retry on next request
-          entry.revalidating = false;
+          // Allow retry on next request
+          if (!useRedis) {
+            const mem = memStore.get(key);
+            if (mem) mem.revalidating = false;
+          }
         });
     }
 
-    return entry.data as T;
+    return data;
   }
 
-  /** Debug: list all keys and their ages */
+  /** Delete a single key from both Redis and memory */
+  async delete(key: string): Promise<boolean> {
+    log("DEL", key);
+    const [redisDeleted, memDeleted] = await Promise.all([
+      redisDel(key),
+      Promise.resolve(memStore.delete(key)),
+    ]);
+    return redisDeleted || memDeleted;
+  }
+
+  /**
+   * Clear entries by prefix (pattern) or everything.
+   *
+   * @param prefix If provided, only keys starting with this prefix are removed.
+   *               Supports Redis SCAN glob: e.g. "market:*"
+   */
+  async clear(prefix?: string): Promise<number> {
+    const pattern = prefix ? `${prefix}*` : "*";
+    let count = 0;
+
+    // Redis
+    const redisKeys = await redisScan(pattern);
+    if (redisKeys.length > 0) {
+      try {
+        count += await getRedisClient().del(...redisKeys);
+      } catch {
+        // ignore
+      }
+    }
+
+    // In-memory (always clean up)
+    if (!prefix) {
+      count += memStore.size;
+      memStore.clear();
+    } else {
+      for (const k of memStore.keys()) {
+        if (k.startsWith(prefix)) {
+          memStore.delete(k);
+          count++;
+        }
+      }
+    }
+
+    log("CLR", prefix ?? "*", `count=${count}`);
+    return count;
+  }
+
+  /** List all currently known cache entries (mem store + approximate Redis info) */
   status(): Array<{
     key: string;
     ageSeconds: number;
     stale: boolean;
     revalidating: boolean;
+    backend: "redis" | "memory";
   }> {
     const now = Date.now();
-    return Array.from(this.store.entries()).map(([key, entry]) => ({
+    // We can only introspect memory store synchronously; Redis is async so
+    // status() reports what the local process knows about
+    return Array.from(memStore.entries()).map(([key, entry]) => ({
       key,
       ageSeconds: Math.floor((now - entry.fetchedAt) / 1000),
       stale: now - entry.fetchedAt > entry.ttl,
       revalidating: entry.revalidating,
+      backend: "memory" as const,
     }));
   }
 
-  /** Delete a single cache entry by exact key */
-  delete(key: string): boolean {
-    return this.store.delete(key);
-  }
+  // ── Private ───────────────────────────────────────────────────────────────
 
-  /** Clear all entries, or only those whose key starts with a given prefix */
-  clear(prefix?: string): number {
-    if (!prefix) {
-      const count = this.store.size;
-      this.store.clear();
-      return count;
+  private async _store<T>(
+    key: string,
+    data: T,
+    ttlMs: number,
+    useRedis: boolean,
+  ): Promise<void> {
+    const payload = { data, fetchedAt: Date.now(), ttl: ttlMs };
+
+    if (useRedis) {
+      await redisSet(key, payload, ttlMs);
+      // Mirror a lightweight entry in mem so status() has something to show
+      memStore.set(key, { ...payload, revalidating: false });
+    } else {
+      // Error-log only first time Redis was expected but unavailable
+      log("ERROR", key, "redis unavailable — stored in memory");
+      memStore.set(key, { ...payload, revalidating: false });
     }
-    let count = 0;
-    for (const key of this.store.keys()) {
-      if (key.startsWith(prefix)) {
-        this.store.delete(key);
-        count++;
-      }
-    }
-    return count;
   }
 }
 
 export const swrCache = SWRCacheService.getInstance();
 
-// ─── TTL Constants (ms) ────────────────────────────────────────────────────
+// ─── TTL Constants (ms) ────────────────────────────────────────────────────────
 
 export const TTL = {
   /** Live index prices (SENSEX, NIFTY LTP) */
