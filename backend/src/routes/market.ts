@@ -1,5 +1,6 @@
 import { Request, Response, Router } from "express";
 
+import { logger } from "../lib/logger";
 import { fetchNSEIndex, getNSECookie } from "../lib/nse";
 import {
   fetchSmartApiCandles,
@@ -104,7 +105,7 @@ async function fetchSmartApiHistoricalPrice(
     });
 
     if (!match?.token) {
-      console.log(`[Historical] Token not found for ${symbol}`);
+      logger.info(`[Historical] Token not found for ${symbol}`);
       return null;
     }
 
@@ -131,7 +132,7 @@ async function fetchSmartApiHistoricalPrice(
 
     return { startPrice, endPrice };
   } catch (e) {
-    console.error(`[Historical] Error fetching data for ${symbol}:`, e);
+    logger.error({ err: e }, `[Historical] Error fetching data for ${symbol}:`);
     return null;
   }
 }
@@ -139,11 +140,11 @@ async function fetchSmartApiHistoricalPrice(
 async function fetchPerformersData(
   tf: string,
 ): Promise<Array<{ symbol: string; price: number; changePct: number }>> {
-  console.log(`[Performers] Fetching fresh data for timeframe: ${tf}`);
+  logger.info(`[Performers] Fetching fresh data for timeframe: ${tf}`);
 
   const rows = await fetchNSEIndex("NIFTY 500");
   if (rows.length === 0) {
-    console.log("[Performers] No data from NSE index");
+    logger.info("[Performers] No data from NSE index");
     return [];
   }
 
@@ -158,7 +159,7 @@ async function fetchPerformersData(
 
   const fromIso = from.toISOString().split("T")[0];
   const toIso = now.toISOString().split("T")[0];
-  console.log(`[Performers] Date range: ${fromIso} to ${toIso}`);
+  logger.info(`[Performers] Date range: ${fromIso} to ${toIso}`);
 
   // NSE historical API expects DD-MM-YYYY
   const fromDateStr = formatDateForNSE(from);
@@ -175,7 +176,7 @@ async function fetchPerformersData(
     .sort((a, b) => (b.regularMarketVolume || 0) - (a.regularMarketVolume || 0))
     .slice(0, 30); // Limit to top 30 by volume to avoid too many API calls
 
-  console.log(`[Performers] Processing ${validStocks.length} stocks`);
+  logger.info(`[Performers] Processing ${validStocks.length} stocks`);
 
   // Fetch historical data and calculate performance
   const performers: Array<{
@@ -205,19 +206,19 @@ async function fetchPerformersData(
         price: stock.regularMarketPrice,
         changePct: changePct,
       });
-      console.log(
+      logger.info(
         `[Performers] ${stock.symbol}: ${changePct.toFixed(2)}% (${historical.startPrice} -> ${historical.endPrice})`,
       );
     }
   }
 
-  console.log(
+  logger.info(
     `[Performers] Found ${performers.length} stocks with historical data`,
   );
 
   // If we don't have enough historical data, use a different approach
   if (performers.length < 8) {
-    console.log(
+    logger.info(
       `[Performers] Only found ${performers.length} stocks with historical data, using estimated performance`,
     );
 
@@ -258,7 +259,7 @@ async function fetchPerformersData(
       }));
 
     performers.push(...estimated);
-    console.log(
+    logger.info(
       `[Performers] Added ${estimated.length} estimated performers for ${tf} using multiplier ${multiplier}x`,
     );
   }
@@ -266,7 +267,7 @@ async function fetchPerformersData(
   // Sort by change percentage and return top 8
   performers.sort((a, b) => b.changePct - a.changePct);
   const result = performers.slice(0, 8);
-  console.log(
+  logger.info(
     `[Performers] Returning ${result.length} performers for timeframe ${tf}`,
   );
   return result;
@@ -285,7 +286,7 @@ router.get(
       );
       res.json({ performers });
     } catch (e) {
-      console.error("[Performers] Error:", e);
+      logger.error({ err: e }, "[Performers] Error:");
       res.status(500).json({ error: "failed_to_fetch_performers" });
     }
   },
@@ -345,7 +346,7 @@ router.get(
       });
 
       if (!resp.ok) {
-        console.error(
+        logger.error(
           `[stock-overview] NSE response ${resp.status} for ${symbol}`,
         );
         res
@@ -410,7 +411,7 @@ router.get(
 
       res.json({ data });
     } catch (e) {
-      console.error("[stock-overview] Error:", e);
+      logger.error({ err: e }, "[stock-overview] Error:");
       res.status(500).json({ error: "failed_to_fetch_stock_overview" });
     }
   },
@@ -433,7 +434,7 @@ router.get(
 
       // Try to get token from instrument master
       const instruments = await loadInstrumentMaster();
-      console.log(
+      logger.info(
         `[symbol-token] Looking for ${symbol} on ${exchange}, total instruments: ${instruments.length}`,
       );
 
@@ -456,7 +457,7 @@ router.get(
 
       // If not found, try without exchange filter (broader search)
       if (!match) {
-        console.log(
+        logger.info(
           `[symbol-token] Not found with exchange filter, trying without...`,
         );
         match = instruments.find((item) => {
@@ -474,7 +475,7 @@ router.get(
           );
         });
         if (match) {
-          console.log(
+          logger.info(
             `[symbol-token] Found without exchange filter, using exchange: ${match.exch_seg}`,
           );
         }
@@ -482,7 +483,7 @@ router.get(
 
       // If still not found, try partial matching
       if (!match) {
-        console.log(`[symbol-token] Trying partial match...`);
+        logger.info(`[symbol-token] Trying partial match...`);
         const symbolUpper = symbol.toUpperCase();
         match = instruments.find((item) => {
           const candidates = [
@@ -510,7 +511,7 @@ router.get(
 
       res.status(404).json({ error: "Token not found", symbol, exchange });
     } catch (e) {
-      console.error("Error getting symbol token:", e);
+      logger.error({ err: e }, "Error getting symbol token:");
       res.status(500).json({ error: "failed_to_get_symbol_token" });
     }
   },
@@ -529,7 +530,7 @@ async function loadInstrumentMaster(): Promise<any[]> {
           return Array.isArray(data) ? data : [];
         }
       } catch (e) {
-        console.error("Failed to load instrument master:", e);
+        logger.error({ err: e }, "Failed to load instrument master:");
       }
       return [];
     },
@@ -613,7 +614,7 @@ router.post(
       const quotes = await fetchSmartApiQuotes(exchangeTokens);
       res.json({ quotes, source: "smartapi" });
     } catch (e) {
-      console.error("[smartapi/quote] Error:", e);
+      logger.error({ err: e }, "[smartapi/quote] Error:");
       res.status(500).json({ error: "failed_to_fetch_quote" });
     }
   },
@@ -667,7 +668,7 @@ router.get(
 
       res.json({ candles });
     } catch (e) {
-      console.error("[smartapi/candles] Error:", e);
+      logger.error({ err: e }, "[smartapi/candles] Error:");
       res.status(500).json({ error: "failed_to_fetch_candles" });
     }
   },
@@ -716,7 +717,7 @@ router.get(
         try {
           const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${from}&period2=${to}&interval=${config.interval}&events=history`;
 
-          console.log(`[Yahoo Finance] Trying: ${yahooSymbol}`);
+          logger.info(`[Yahoo Finance] Trying: ${yahooSymbol}`);
 
           const response = await fetch(url, {
             headers: {
@@ -727,7 +728,7 @@ router.get(
           });
 
           if (!response.ok) {
-            console.warn(
+            logger.warn(
               `[Yahoo Finance] Error for ${yahooSymbol}: ${response.status}`,
             );
             continue;
@@ -736,7 +737,7 @@ router.get(
           const data: any = await response.json();
 
           if (data.chart?.error) {
-            console.warn(
+            logger.warn(
               `[Yahoo Finance] API error for ${yahooSymbol}:`,
               data.chart.error,
             );
@@ -746,7 +747,7 @@ router.get(
           const result = data.chart?.result?.[0];
 
           if (!result || !result.timestamp || !result.indicators?.quote?.[0]) {
-            console.warn(`[Yahoo Finance] Invalid response for ${yahooSymbol}`);
+            logger.warn(`[Yahoo Finance] Invalid response for ${yahooSymbol}`);
             continue;
           }
 
@@ -781,7 +782,7 @@ router.get(
           }
 
           if (candles.length > 0) {
-            console.log(
+            logger.info(
               `[Yahoo Finance] ✅ Success for ${yahooSymbol}: ${candles.length} candles`,
             );
             res.json({
@@ -793,17 +794,17 @@ router.get(
             return;
           }
         } catch (e: any) {
-          console.warn(
+          logger.warn(
             `[Yahoo Finance] Error trying ${yahooSymbol}:`,
             e.message,
           );
         }
       }
 
-      console.error(`[Yahoo Finance] ❌ All formats failed for: ${symbol}`);
+      logger.error(`[Yahoo Finance] ❌ All formats failed for: ${symbol}`);
       res.status(404).json({ error: `Unable to fetch data for ${symbol}` });
     } catch (e: any) {
-      console.error("[Yahoo Finance] Error:", e);
+      logger.error({ err: e }, "[Yahoo Finance] Error:");
       res
         .status(500)
         .json({ error: e.message || "Failed to fetch Yahoo Finance data" });

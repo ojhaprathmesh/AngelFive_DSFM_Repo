@@ -11,7 +11,7 @@ Express API gateway and orchestration layer for the AngelFive DSFM platform. Act
 | Auth / Data | Firebase Admin SDK (Auth + Firestore) |
 | Security | `helmet`, `cors`, `express-rate-limit`, `express-validator` |
 | Market APIs | AngelOne SmartAPI, NSE, Yahoo Finance |
-| Logging | `morgan` |
+| Logging | `pino` (Structured JSON) + `pino-http` (Request correlation IDs) |
 | Caching | `ioredis` (Distributed) with local LRU fallback |
 | OTP | `speakeasy` (TOTP for SmartAPI auth) |
 | Process | `nodemon -L` / `tsx` (dev), `node dist/server.js` (prod) |

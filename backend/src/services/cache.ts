@@ -24,6 +24,7 @@
  *   const data = await swrCache.get("market:discovery", fetchDiscovery, TTL.DISCOVERY);
  */
 
+import { logger } from "../lib/logger";
 import { getRedisClient, getRedisStatus } from "../lib/redis";
 
 type FetchFn<T> = () => Promise<T>;
@@ -46,7 +47,7 @@ function log(
   key: string,
   extra = "",
 ): void {
-  console.log(`[CACHE] ${tag.padEnd(5)} ${key}${extra ? "  " + extra : ""}`);
+  logger.debug({ key, tag, extra }, `[CACHE] ${tag.padEnd(5)}`);
 }
 
 function isRedisAvailable(): boolean {
@@ -191,10 +192,7 @@ class SWRCacheService {
       fetchFn()
         .then((fresh) => this._store(key, fresh, ttlMs, useRedis))
         .catch((err) => {
-          console.error(
-            `[CACHE] ERROR ${key}  revalidation failed:`,
-            err?.message ?? err,
-          );
+          logger.error({ key, err }, `[CACHE] revalidation failed`);
           // Allow retry on next request
           if (!useRedis) {
             const mem = memStore.get(key);

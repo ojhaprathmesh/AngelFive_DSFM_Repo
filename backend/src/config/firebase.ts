@@ -2,6 +2,7 @@ import { App, cert, getApps, initializeApp } from "firebase-admin/app";
 import { Auth, getAuth } from "firebase-admin/auth";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 
+import { logger } from "../lib/logger";
 import { ENV } from "./env";
 
 // Firebase Admin SDK configuration
@@ -39,10 +40,10 @@ try {
       projectId: config.projectId,
     });
 
-    console.log("✅ Firebase Admin SDK initialized\n");
+    logger.info("✅ Firebase Admin SDK initialized\n");
   } else {
     firebaseApp = getApps()[0];
-    console.log("✅ Firebase Admin SDK already initialized");
+    logger.info("✅ Firebase Admin SDK already initialized");
   }
 
   firebaseAuth = getAuth(firebaseApp);
@@ -52,7 +53,7 @@ try {
     ignoreUndefinedProperties: true,
   });
 } catch (error) {
-  console.error("❌ Firebase initialization failed:", error);
+  logger.error({ err: error }, "❌ Firebase initialization failed:");
   throw error;
 }
 
@@ -64,7 +65,7 @@ export const checkFirebaseConnection = async (): Promise<boolean> => {
     await firebaseFirestore.collection("_health_check").limit(1).get();
     return true;
   } catch (error) {
-    console.error("Firebase connection check failed:", error);
+    logger.error({ err: error }, "Firebase connection check failed:");
     return false;
   }
 };

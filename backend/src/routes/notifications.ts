@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 
 import { firebaseFirestore } from "../config/firebase";
+import { logger } from "../lib/logger";
 import { verifyToken } from "../middleware/auth";
 import { notificationService } from "../services/notification";
 
@@ -38,7 +39,10 @@ router.get("/", verifyToken, async (req: Request, res: Response) => {
 
     return res.json({ status: "success", notifications });
   } catch (error: any) {
-    console.error("[Notifications] Error fetching notifications:", error);
+    logger.error(
+      { err: error },
+      "[Notifications] Error fetching notifications:",
+    );
     return res.status(500).json({ status: "error", message: error.message });
   }
 });

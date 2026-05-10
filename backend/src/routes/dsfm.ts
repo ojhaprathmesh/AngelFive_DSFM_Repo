@@ -1,6 +1,7 @@
-﻿import { Request, Response, Router } from "express";
+import { Request, Response, Router } from "express";
 
 import { ENV } from "../config/env";
+import { logger } from "../lib/logger";
 import { fetchNSEIndex } from "../lib/nse";
 import { getSmartApiJwtToken } from "../lib/smartapi";
 import { mlFetch } from "../utils/mlFetch";
@@ -63,7 +64,7 @@ async function loadInstrumentMaster(): Promise<InstrumentEntry[]> {
     instrumentCacheTime = Date.now();
     return instruments;
   } catch (e) {
-    console.error("Failed to load instrument master:", e);
+    logger.error({ err: e }, "Failed to load instrument master:");
     return [];
   }
 }
@@ -94,7 +95,7 @@ async function getSymbolToken(
   if (match && match.token) {
     return { token: String(match.token), exchange: exchangeUpper };
   }
-  console.warn(`Symbol token not found for ${symbol} on ${exchangeUpper}`);
+  logger.warn(`Symbol token not found for ${symbol} on ${exchangeUpper}`);
   return null;
 }
 
@@ -222,20 +223,20 @@ async function fetchYahooFinanceData(
     if (candles.length > 0) {
       const firstDate = new Date(candles[0].time);
       const lastDate = new Date(candles[candles.length - 1].time);
-      console.log(
+      logger.info(
         `Yahoo Finance: Fetched ${candles.length} candles for ${yahooSymbol} (${timeframe})`,
       );
-      console.log(
+      logger.info(
         `  Date range: ${firstDate.toISOString().split("T")[0]} to ${lastDate.toISOString().split("T")[0]}`,
       );
-      console.log(
+      logger.info(
         `  Requested from: ${fromDate.toISOString().split("T")[0]} to ${now.toISOString().split("T")[0]}`,
       );
     }
 
     return { candles };
   } catch (e: any) {
-    console.error("Yahoo Finance fetch error:", e);
+    logger.error({ err: e }, "Yahoo Finance fetch error:");
     return {
       candles: [],
       error: e.message || "Failed to fetch from Yahoo Finance",
@@ -258,7 +259,7 @@ async function fetchAngelHistoricalCandles(
   if (!smartAPIkey) {
     const errorMsg =
       "SmartAPI API key missing. Please set SMARTAPI_API_KEY in your .env file. Make sure to restart the backend server after adding credentials.";
-    console.error(errorMsg);
+    logger.error(errorMsg);
     return { candles: [], error: errorMsg };
   }
 
@@ -267,7 +268,7 @@ async function fetchAngelHistoricalCandles(
   if (!jwt) {
     const errorMsg =
       "Failed to generate SmartAPI JWT token. Please check SMARTAPI_CLIENT_CODE, SMARTAPI_PASSWORD, and SMARTAPI_TOTP_SECRET in your .env file.";
-    console.error(errorMsg);
+    logger.error(errorMsg);
     return { candles: [], error: errorMsg };
   }
 
@@ -312,27 +313,29 @@ async function fetchAngelHistoricalCandles(
       } catch {
         if (errorText) errorMsg = errorText;
       }
-      console.error(`Angel historical API error:`, errorMsg);
+      logger.error({ err: errorMsg }, `Angel historical API error:`);
       return { candles: [], error: errorMsg };
     }
 
     const json = (await resp.json()) as SmartAPICandleResponse;
     if (!json.status || !Array.isArray(json.data)) {
       const errorMsg = json.message || "Invalid response from Angel One API";
-      console.error("Invalid Angel historical response", json);
+      logger.error({ err: json }, "Invalid Angel historical response");
       return { candles: [], error: errorMsg };
     }
 
     // Debug: Log first few timestamps to see format
     if (json.data.length > 0) {
-      console.log(
+      logger.info(
+        {
+          samples: json.data.slice(0, 5).map(([time]) => ({
+            time,
+            type: typeof time,
+            raw: JSON.stringify(time),
+            parsed: new Date(time as string).toISOString(),
+          })),
+        },
         "Sample API response timestamps (first 5):",
-        json.data.slice(0, 5).map(([time]) => ({
-          time,
-          type: typeof time,
-          raw: JSON.stringify(time),
-          parsed: new Date(time as string).toISOString(),
-        })),
       );
     }
 
@@ -350,7 +353,7 @@ async function fetchAngelHistoricalCandles(
         time === "null" ||
         time === "undefined"
       ) {
-        console.warn(`Empty or invalid time string: "${time}"`);
+        logger.warn(`Empty or invalid time string: "${time}"`);
         invalidCount++;
         continue;
       }
@@ -383,7 +386,7 @@ async function fetchAngelHistoricalCandles(
                 parseInt(second, 10),
               );
             } else {
-              console.warn(`Could not parse time: "${time}"`);
+              logger.warn(`Could not parse time: "${time}"`);
               invalidCount++;
               continue;
             }
@@ -397,7 +400,7 @@ async function fetchAngelHistoricalCandles(
         isNaN(dateObj.getTime()) ||
         dateObj.getFullYear() < 2000
       ) {
-        console.warn(
+        logger.warn(
           `Invalid date object created from time: "${time}", year: ${dateObj?.getFullYear()}`,
         );
         invalidCount++;
@@ -427,15 +430,13 @@ async function fetchAngelHistoricalCandles(
     }
 
     if (invalidCount > 0) {
-      console.warn(
+      logger.warn(
         `Filtered out ${invalidCount} invalid candles with bad dates`,
       );
     }
 
     if (validCandles.length === 0) {
-      console.error(
-        "No valid candles after filtering! All dates were invalid.",
-      );
+      logger.error("No valid candles after filtering! All dates were invalid.");
       return {
         candles: [],
         error: "No valid historical data found. All timestamps were invalid.",
@@ -447,7 +448,7 @@ async function fetchAngelHistoricalCandles(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
     );
 
-    console.log(
+    logger.info(
       `Successfully parsed ${candles.length} valid candles out of ${json.data.length} total`,
     );
 
@@ -455,7 +456,7 @@ async function fetchAngelHistoricalCandles(
   } catch (e: any) {
     const errorMsg =
       e.message || "Network error while fetching data from Angel One API";
-    console.error("Error fetching Angel historical data:", e);
+    logger.error({ err: e }, "Error fetching Angel historical data:");
     return { candles: [], error: errorMsg };
   }
 }
@@ -565,7 +566,7 @@ router.get("/returns", async (req: Request, res: Response): Promise<void> => {
 
     // Fallback to Angel One if Yahoo fails
     if (result.error || result.candles.length === 0) {
-      console.log(`Yahoo Finance failed for ${symbol}, trying Angel One...`);
+      logger.info(`Yahoo Finance failed for ${symbol}, trying Angel One...`);
       result = await fetchAngelHistoricalCandles(symbol, timeframe);
     }
 
@@ -642,7 +643,7 @@ router.get("/returns", async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (e) {
-    console.error("Error calculating returns:", e);
+    logger.error({ err: e }, "Error calculating returns:");
     res.status(500).json({ error: "failed_to_calculate_returns" });
   }
 });
@@ -654,12 +655,12 @@ router.get(
     try {
       const timeframe = (req.query.timeframe as string) || "3M";
 
-      console.log(`Starting correlation analysis for NIFTY 50 (${timeframe})`);
+      logger.info(`Starting correlation analysis for NIFTY 50 (${timeframe})`);
 
       // Get all NIFTY 50 stocks
       const rows = await fetchNSEIndex("NIFTY 50");
       if (!rows || rows.length === 0) {
-        console.error("Failed to fetch NIFTY 50 index data");
+        logger.error("Failed to fetch NIFTY 50 index data");
         res.status(500).json({ error: "Failed to fetch NIFTY 50 index data" });
         return;
       }
@@ -668,7 +669,7 @@ router.get(
         .map((r: any) => String(r?.symbol || r?.tradingSymbol || ""))
         .filter((s) => s.length > 0 && !s.includes("NIFTY"));
 
-      console.log(`Found ${allStocks.length} stocks in NIFTY 50`);
+      logger.info(`Found ${allStocks.length} stocks in NIFTY 50`);
 
       // Fetch returns for all stocks using Yahoo Finance (with Angel One fallback)
       const stockReturns: { symbol: string; returns: number[] }[] = [];
@@ -685,7 +686,7 @@ router.get(
           }
 
           if (result.error) {
-            console.warn(`Skipping ${symbol}: ${result.error}`);
+            logger.warn(`Skipping ${symbol}: ${result.error}`);
             failCount++;
             continue;
           }
@@ -705,29 +706,29 @@ router.get(
               stockReturns.push({ symbol, returns });
               successCount++;
             } else {
-              console.warn(
+              logger.warn(
                 `Skipping ${symbol}: Only ${returns.length} returns (need at least 30)`,
               );
               failCount++;
             }
           } else {
-            console.warn(
+            logger.warn(
               `Skipping ${symbol}: Only ${prices.length} candles (need at least 40)`,
             );
             failCount++;
           }
         } catch (err: any) {
-          console.warn(`Error processing ${symbol}:`, err.message);
+          logger.warn(`Error processing ${symbol}:`, err.message);
           failCount++;
         }
       }
 
-      console.log(
+      logger.info(
         `Successfully fetched data for ${successCount} stocks, failed: ${failCount}`,
       );
 
       if (stockReturns.length < 2) {
-        console.error(`Insufficient stocks with data: ${stockReturns.length}`);
+        logger.error(`Insufficient stocks with data: ${stockReturns.length}`);
         res.status(400).json({
           error:
             "Insufficient data for correlation analysis. Need at least 2 stocks with valid data.",
@@ -739,7 +740,7 @@ router.get(
       const minLength = Math.min(...stockReturns.map((s) => s.returns.length));
 
       if (minLength < 30) {
-        console.error(`Insufficient time points after alignment: ${minLength}`);
+        logger.error(`Insufficient time points after alignment: ${minLength}`);
         res.status(400).json({
           error: `Insufficient time points (${minLength}). Need at least 30 data points per stock for correlation analysis.`,
         });
@@ -751,7 +752,7 @@ router.get(
         returns: s.returns.slice(-minLength),
       }));
 
-      console.log(
+      logger.info(
         `Calculating correlation matrix for ${alignedReturns.length} stocks with ${minLength} time points each`,
       );
 
@@ -772,7 +773,7 @@ router.get(
               );
               // Ensure correlation is a valid number
               if (isNaN(corr) || !isFinite(corr)) {
-                console.warn(
+                logger.warn(
                   `Invalid correlation for ${symbols[i]} vs ${symbols[j]}: ${corr}`,
                 );
                 row.push(0.0);
@@ -780,7 +781,7 @@ router.get(
                 row.push(Number(corr.toFixed(3)));
               }
             } catch (err: any) {
-              console.warn(
+              logger.warn(
                 `Error calculating correlation for ${symbols[i]} vs ${symbols[j]}:`,
                 err.message,
               );
@@ -820,7 +821,7 @@ router.get(
       const T = minLength; // number of time points
 
       if (T === 0 || N === 0) {
-        console.error(`Invalid dimensions: N=${N}, T=${T}`);
+        logger.error(`Invalid dimensions: N=${N}, T=${T}`);
         res
           .status(500)
           .json({ error: "Invalid matrix dimensions for RMT calculation" });
@@ -830,7 +831,7 @@ router.get(
       const Q = N / T; // ratio
 
       if (Q >= 1) {
-        console.warn(
+        logger.warn(
           `Q ratio >= 1 (${Q.toFixed(3)}), RMT may not be accurate. N=${N}, T=${T}`,
         );
       }
@@ -843,7 +844,7 @@ router.get(
         (e) => e > lambdaMax,
       ).length;
 
-      console.log(
+      logger.info(
         `Correlation analysis complete: ${symbols.length} stocks, avg correlation: ${averageCorrelation.toFixed(3)}, significant factors: ${significantEigenvalues}`,
       );
 
@@ -857,8 +858,8 @@ router.get(
         timestamp: new Date().toISOString(),
       });
     } catch (e: any) {
-      console.error("Error calculating correlation:", e);
-      console.error("Stack trace:", e.stack);
+      logger.error({ err: e }, "Error calculating correlation:");
+      logger.error("Stack trace:", e.stack);
       res.status(500).json({
         error: `failed_to_calculate_correlation: ${e.message || "Unknown error"}`,
       });
@@ -914,7 +915,7 @@ async function fetchStockReturnsMatrix(
       }
 
       if (result.error) {
-        console.warn(`Skipping ${symbol}: ${result.error}`);
+        logger.warn(`Skipping ${symbol}: ${result.error}`);
         continue;
       }
 
@@ -929,7 +930,7 @@ async function fetchStockReturnsMatrix(
         }
       }
     } catch (err: any) {
-      console.warn(`Error processing ${symbol}:`, err.message);
+      logger.warn(`Error processing ${symbol}:`, err.message);
     }
   }
 
@@ -974,7 +975,7 @@ router.post("/mpt", async (req: Request, res: Response): Promise<void> => {
     const tf = timeframe || "1Y";
     const rf = riskFreeRate || 0.06;
 
-    console.log(`MPT optimization for ${symbols.length} stocks (${tf})`);
+    logger.info(`MPT optimization for ${symbols.length} stocks (${tf})`);
 
     const matrixResult = await fetchStockReturnsMatrix(symbols, tf);
     if ("error" in matrixResult) {
@@ -983,7 +984,7 @@ router.post("/mpt", async (req: Request, res: Response): Promise<void> => {
     }
     const { returnsMatrix, returnSymbols, minLength } = matrixResult;
 
-    console.log(
+    logger.info(
       `Sending MPT request to ML service: ${returnSymbols.length} assets, ${minLength} time periods`,
     );
 
@@ -1007,14 +1008,14 @@ router.post("/mpt", async (req: Request, res: Response): Promise<void> => {
       });
     } else {
       const errorText = await mlResp.text();
-      console.error(`ML service MPT failed: ${mlResp.status} - ${errorText}`);
+      logger.error(`ML service MPT failed: ${mlResp.status} - ${errorText}`);
       res.status(mlResp.status).json({
         error: "ml_service_error",
         message: errorText || "ML service error",
       });
     }
   } catch (e: any) {
-    console.error("Error in MPT optimization:", e);
+    logger.error({ err: e }, "Error in MPT optimization:");
     res.status(500).json({
       error: `failed_to_optimize_portfolio: ${e.message || "Unknown error"}`,
     });
@@ -1039,7 +1040,7 @@ router.post(
       const lambda = riskAversion || 3.0;
       const tauVal = tau || 0.05;
 
-      console.log(
+      logger.info(
         `Black-Litterman optimization for ${symbols.length} stocks (${tf})`,
       );
 
@@ -1050,7 +1051,7 @@ router.post(
       }
       const { returnsMatrix, returnSymbols, minLength } = matrixResult;
 
-      console.log(
+      logger.info(
         `Sending Black-Litterman request to ML service: ${returnSymbols.length} assets, ${minLength} time periods`,
       );
 
@@ -1077,7 +1078,7 @@ router.post(
         });
       } else {
         const errorText = await mlResp.text();
-        console.error(
+        logger.error(
           `ML service Black-Litterman failed: ${mlResp.status} - ${errorText}`,
         );
         res.status(mlResp.status).json({
@@ -1086,7 +1087,7 @@ router.post(
         });
       }
     } catch (e: any) {
-      console.error("Error in Black-Litterman optimization:", e);
+      logger.error({ err: e }, "Error in Black-Litterman optimization:");
       res.status(500).json({
         error: `failed_to_optimize_portfolio: ${e.message || "Unknown error"}`,
       });
@@ -1103,7 +1104,7 @@ router.get("/pca", async (_req: Request, res: Response): Promise<void> => {
       explainedVariance: [],
     });
   } catch (e) {
-    console.error("Error in PCA analysis:", e);
+    logger.error({ err: e }, "Error in PCA analysis:");
     res.status(500).json({ error: "failed_to_calculate_pca" });
   }
 });
@@ -1118,7 +1119,7 @@ router.get("/network", async (_req: Request, res: Response): Promise<void> => {
       mst: [],
     });
   } catch (e) {
-    console.error("Error in network analysis:", e);
+    logger.error({ err: e }, "Error in network analysis:");
     res.status(500).json({ error: "failed_to_analyze_network" });
   }
 });
@@ -1169,12 +1170,12 @@ router.get("/adf-test", async (req: Request, res: Response): Promise<void> => {
         return;
       } else {
         const errorText = await mlResp.text();
-        console.warn(
+        logger.warn(
           `ML service ADF test failed: ${mlResp.status} - ${errorText}`,
         );
       }
     } catch (mlError: any) {
-      console.warn(
+      logger.warn(
         "ML service not available for ADF test, using simplified calculation:",
         mlError.message,
       );
@@ -1213,7 +1214,7 @@ router.get("/adf-test", async (req: Request, res: Response): Promise<void> => {
           : "Data appears non-stationary. Apply differencing before modeling. Note: This is a simplified test. Start ML service for accurate ADF test results.",
     });
   } catch (e) {
-    console.error("Error in ADF test:", e);
+    logger.error({ err: e }, "Error in ADF test:");
     res.status(500).json({ error: "failed_to_perform_adf_test" });
   }
 });
@@ -1267,7 +1268,7 @@ router.get("/acf-pacf", async (req: Request, res: Response): Promise<void> => {
         return;
       }
     } catch (mlError: any) {
-      console.warn(
+      logger.warn(
         "ML service not available for ACF/PACF, using simplified calculation:",
         mlError.message,
       );
@@ -1305,7 +1306,7 @@ router.get("/acf-pacf", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    console.log(
+    logger.info(
       `ACF/PACF calculated for ${symbol}: ${acf.length} lags, ACF[1]=${acf[1]?.toFixed(3)}, PACF[1]=${pacf[1]?.toFixed(3)}, data points: ${logReturns.length}, adjusted lags: ${adjustedMaxLags}`,
     );
 
@@ -1317,7 +1318,7 @@ router.get("/acf-pacf", async (req: Request, res: Response): Promise<void> => {
       confidenceInterval: 1.96 / Math.sqrt(logReturns.length),
     });
   } catch (e) {
-    console.error("Error calculating ACF/PACF:", e);
+    logger.error({ err: e }, "Error calculating ACF/PACF:");
     res.status(500).json({ error: "failed_to_calculate_acf_pacf" });
   }
 });
@@ -1344,7 +1345,7 @@ router.post("/arima", async (req: Request, res: Response): Promise<void> => {
 
     // If insufficient data, try longer timeframe
     if (prices.length < 30 && timeframe !== "1Y") {
-      console.log(`Insufficient data for ${timeframe}, trying 1Y timeframe`);
+      logger.info(`Insufficient data for ${timeframe}, trying 1Y timeframe`);
       result = await fetchAngelHistoricalCandles(symbol, "1Y");
       if (!result.error) {
         candles = result.candles;
@@ -1385,12 +1386,10 @@ router.post("/arima", async (req: Request, res: Response): Promise<void> => {
         return;
       } else {
         const errorText = await mlResp.text();
-        console.warn(
-          `ML service ARIMA failed: ${mlResp.status} - ${errorText}`,
-        );
+        logger.warn(`ML service ARIMA failed: ${mlResp.status} - ${errorText}`);
       }
     } catch (e: any) {
-      console.error("ML service ARIMA error:", e.message);
+      logger.error("ML service ARIMA error:", e.message);
       res.status(503).json({
         error: "ml_service_unavailable",
         message: `ML service is not available. ${mlServiceUrl ? `URL: ${mlServiceUrl}. ` : "Set ML_SERVICE_URL in backend env for production. "}Error: ${e.message}`,
@@ -1404,7 +1403,7 @@ router.post("/arima", async (req: Request, res: Response): Promise<void> => {
         "ML service is not available. Set ML_SERVICE_URL in backend env (e.g. https://your-ml-service.onrender.com), or run locally: cd ml-service && python app.py",
     });
   } catch (e) {
-    console.error("Error in ARIMA:", e);
+    logger.error({ err: e }, "Error in ARIMA:");
     res.status(500).json({ error: "failed_to_fit_arima" });
   }
 });
@@ -1440,7 +1439,7 @@ router.post("/garch", async (req: Request, res: Response): Promise<void> => {
       timeframe !== "2Y" &&
       timeframe !== "3Y"
     ) {
-      console.log(`Insufficient data for ${timeframe}, trying 1Y timeframe`);
+      logger.info(`Insufficient data for ${timeframe}, trying 1Y timeframe`);
       result = await fetchYahooFinanceData(symbol, "1Y");
       if (result.error || result.candles.length === 0) {
         result = await fetchAngelHistoricalCandles(symbol, "1Y");
@@ -1484,12 +1483,10 @@ router.post("/garch", async (req: Request, res: Response): Promise<void> => {
         return;
       } else {
         const errorText = await mlResp.text();
-        console.warn(
-          `ML service GARCH failed: ${mlResp.status} - ${errorText}`,
-        );
+        logger.warn(`ML service GARCH failed: ${mlResp.status} - ${errorText}`);
       }
     } catch (e: any) {
-      console.error("ML service GARCH error:", e.message);
+      logger.error("ML service GARCH error:", e.message);
       res.status(503).json({
         error: "ml_service_unavailable",
         message: `ML service is not available. ${mlServiceUrl ? `URL: ${mlServiceUrl}. ` : "Set ML_SERVICE_URL in backend env for production. "}Error: ${e.message}`,
@@ -1503,7 +1500,7 @@ router.post("/garch", async (req: Request, res: Response): Promise<void> => {
         "ML service is not available. Set ML_SERVICE_URL in backend env (e.g. https://your-ml-service.onrender.com), or run locally: cd ml-service && python app.py",
     });
   } catch (e) {
-    console.error("Error in GARCH:", e);
+    logger.error({ err: e }, "Error in GARCH:");
     res.status(500).json({ error: "failed_to_fit_garch" });
   }
 });
@@ -1564,10 +1561,10 @@ router.post("/lstm", async (req: Request, res: Response): Promise<void> => {
         return;
       } else {
         const errorText = await mlResp.text();
-        console.warn(`ML service LSTM failed: ${mlResp.status} - ${errorText}`);
+        logger.warn(`ML service LSTM failed: ${mlResp.status} - ${errorText}`);
       }
     } catch (e: any) {
-      console.error("ML service LSTM error:", e.message);
+      logger.error("ML service LSTM error:", e.message);
     }
 
     res.status(503).json({
@@ -1576,7 +1573,7 @@ router.post("/lstm", async (req: Request, res: Response): Promise<void> => {
         "ML service is not available. Please ensure the ML service is running on port 8000.",
     });
   } catch (e) {
-    console.error("Error in LSTM:", e);
+    logger.error({ err: e }, "Error in LSTM:");
     res.status(500).json({ error: "failed_to_run_lstm" });
   }
 });
@@ -1612,12 +1609,12 @@ router.post(
           return;
         } else {
           const errorText = await mlResp.text();
-          console.warn(
+          logger.warn(
             `ML service FinBERT failed: ${mlResp.status} - ${errorText}`,
           );
         }
       } catch (e: any) {
-        console.error("ML service FinBERT error:", e.message);
+        logger.error("ML service FinBERT error:", e.message);
         const msg = String(e?.message || "");
         if (
           msg.includes("ML service unavailable after") ||
@@ -1639,7 +1636,7 @@ router.post(
           "ML service is not available. Please ensure the ML service is running on port 8000.",
       });
     } catch (e) {
-      console.error("Error in FinBERT sentiment:", e);
+      logger.error({ err: e }, "Error in FinBERT sentiment:");
       res.status(500).json({ error: "failed_to_analyze_sentiment" });
     }
   },
@@ -1680,12 +1677,12 @@ router.post(
           return;
         } else {
           const errorText = await mlResp.text();
-          console.warn(
+          logger.warn(
             `ML service rule-based sentiment failed: ${mlResp.status} - ${errorText}`,
           );
         }
       } catch (e: any) {
-        console.error("ML service rule-based sentiment error:", e.message);
+        logger.error("ML service rule-based sentiment error:", e.message);
       }
 
       res.status(503).json({
@@ -1694,7 +1691,7 @@ router.post(
           "ML service is not available. Please ensure the ML service is running on port 8000.",
       });
     } catch (e) {
-      console.error("Error in rule-based sentiment:", e);
+      logger.error({ err: e }, "Error in rule-based sentiment:");
       res.status(500).json({ error: "failed_to_analyze_sentiment" });
     }
   },

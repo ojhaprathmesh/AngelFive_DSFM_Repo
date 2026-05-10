@@ -25,6 +25,8 @@
  * a consistent 503 response.
  */
 
+import { logger } from "../lib/logger";
+
 const RETRY_DELAYS_MS = [10_000, 20_000, 30_000]; // 10 s, 20 s, 30 s
 
 export class MlServiceError extends Error {
@@ -75,19 +77,21 @@ export async function mlFetch(
 
       // Server error (5xx) or 429 — worth retrying
       lastError = new MlServiceError(`ML service returned HTTP ${resp.status}`);
-      console.warn(
-        `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} failed with HTTP ${resp.status} for ${url}`,
+      logger.warn(
+        { url, status: resp.status, attempt: attempt + 1 },
+        "[mlFetch] Attempt failed",
       );
     } catch (e: unknown) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      console.warn(
-        `[mlFetch] Attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1} threw: ${lastError.message} for ${url}`,
+      logger.warn(
+        { url, err: lastError, attempt: attempt + 1 },
+        "[mlFetch] Attempt threw error",
       );
     }
 
     if (attempt < RETRY_DELAYS_MS.length) {
       const delay = RETRY_DELAYS_MS[attempt];
-      console.log(`[mlFetch] Retrying in ${delay / 1000}s... (${url})`);
+      logger.info({ url, delayMs: delay }, "[mlFetch] Retrying...");
       await new Promise((r) => setTimeout(r, delay));
     }
   }

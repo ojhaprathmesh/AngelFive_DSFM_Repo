@@ -5,6 +5,7 @@
 import speakeasy from "speakeasy";
 
 import { ENV } from "../config/env";
+import { logger } from "./logger";
 
 let jwtTokenCache: string | null = null;
 let jwtTokenExpiry = 0;
@@ -57,7 +58,7 @@ export async function getSmartApiJwtToken(): Promise<string | null> {
     const data: any = await response.json();
 
     if (!data.status || !data.data?.jwtToken) {
-      console.error("[SmartAPI] Login failed:", data.message, data.errorCode);
+      logger.error("[SmartAPI] Login failed:", data.message, data.errorCode);
       return null;
     }
 
@@ -68,7 +69,7 @@ export async function getSmartApiJwtToken(): Promise<string | null> {
   } catch (error) {
     jwtTokenCache = null;
     jwtTokenExpiry = 0;
-    console.error("SmartAPI login failed:", error);
+    logger.error({ err: error }, "SmartAPI login failed:");
     return null;
   }
 }
@@ -165,7 +166,7 @@ export async function fetchSmartApiQuotes(
         totSellQuan: q.totSellQuan,
       }));
     } catch (error) {
-      console.error("SmartAPI quote fetch failed:", error);
+      logger.error({ err: error }, "SmartAPI quote fetch failed:");
       return [];
     }
   });
@@ -226,35 +227,35 @@ export async function fetchSmartApiCandles(
 
       if (!response.ok) {
         const errText = await response.text().catch(() => "");
-        console.error(
+        logger.error(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            error: errText.slice(0, 500),
+          },
           "[SmartAPI] Candle fetch HTTP error:",
-          response.status,
-          response.statusText,
-          errText.slice(0, 500),
         );
         return [];
       }
 
       const data: any = await response.json();
       if (!data.status || !Array.isArray(data.data)) {
-        console.error(
-          "[SmartAPI] Candle fetch returned invalid payload:",
-          JSON.stringify(
-            {
+        logger.error(
+          {
+            payload: {
               status: data?.status,
               message: data?.message,
               errorCode: data?.errorCode,
             },
-            null,
-            2,
-          ),
+          },
+          "[SmartAPI] Candle fetch returned invalid payload:",
         );
         return [];
       }
 
       return data.data;
     } catch (error) {
-      console.error("SmartAPI candle fetch failed:", error);
+      logger.error({ err: error }, "SmartAPI candle fetch failed:");
       return [];
     }
   });

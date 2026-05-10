@@ -14,6 +14,7 @@
 import Redis from "ioredis";
 
 import { ENV } from "../config/env";
+import { logger } from "./logger";
 
 // ── Health state ─────────────────────────────────────────────────────────────
 
@@ -42,14 +43,14 @@ function createClient(): Redis {
     // Returns null after 20 consecutive failures to stop retrying
     retryStrategy(times) {
       if (times > 20) {
-        console.error(
+        logger.error(
           "[Redis] ❌ Max reconnection attempts reached — giving up",
         );
         _status = "error";
         return null; // stop retrying
       }
       const delay = Math.min(100 * 2 ** (times - 1), 10_000);
-      console.warn(`[Redis] ⚠ Reconnecting in ${delay}ms (attempt ${times})`);
+      logger.warn(`[Redis] ⚠ Reconnecting in ${delay}ms (attempt ${times})`);
       return delay;
     },
 
@@ -67,20 +68,19 @@ function createClient(): Redis {
   // ── Event handlers ─────────────────────────────────────────────────────────
 
   client.on("connect", () => {
-    console.log(
-      "[Redis] ✅ Connected to",
-      ENV.REDIS_URL.replace(/\/\/.*@/, "//***@"),
+    logger.info(
+      `[Redis] ✅ Connected to ${ENV.REDIS_URL.replace(/\/\/.*@/, "//***@")}`,
     ); // mask credentials
     _status = "connecting"; // still handshaking
   });
 
   client.on("ready", () => {
-    console.log("[Redis] ✅ Ready");
+    logger.info("[Redis] ✅ Ready");
     _status = "connected";
   });
 
   client.on("close", () => {
-    console.warn("[Redis] ⚠ Connection closed");
+    logger.warn("[Redis] ⚠ Connection closed");
     _status = "disconnected";
     _latencyMs = null;
   });
@@ -92,13 +92,13 @@ function createClient(): Redis {
   client.on("error", (err: Error) => {
     // Only log the first occurrence of a repeated error to avoid log spam
     if (_status !== "error") {
-      console.error("[Redis] ❌ Error:", err.message);
+      logger.error({ err }, "[Redis] ❌ Error");
     }
     _status = "error";
   });
 
   client.on("end", () => {
-    console.warn("[Redis] ⚠ Connection ended (no more reconnects)");
+    logger.warn("[Redis] ⚠ Connection ended (no more reconnects)");
     _status = "disconnected";
   });
 

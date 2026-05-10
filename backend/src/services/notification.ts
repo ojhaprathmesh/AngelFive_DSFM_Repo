@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { firebaseFirestore } from "../config/firebase";
+import { logger } from "../lib/logger";
 import { AppEventPayload, appEvents, AppEventType } from "./event-emitter";
 
 export class NotificationService {
@@ -24,9 +25,9 @@ export class NotificationService {
         try {
           await this.createNotification(payload);
         } catch (error) {
-          console.error(
+          logger.error(
+            { err: error },
             `[NotificationService] Error creating notification for event ${eventType}:`,
-            error,
           );
         }
       });
@@ -127,9 +128,9 @@ export class NotificationService {
         }
       });
     } catch (error) {
-      console.error(
+      logger.error(
+        { err: error },
         `[NotificationService] Error updating stats for user ${userId}:`,
-        error,
       );
     }
   }

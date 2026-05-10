@@ -5,10 +5,11 @@ import cors from "cors";
 import express, { Express, NextFunction, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import morgan from "morgan";
 
 import { ENV } from "./config/env";
+import { logger } from "./lib/logger";
 import { getRedisStatus } from "./lib/redis";
+import { requestLogger } from "./middleware/logger";
 import authRouter from "./routes/auth";
 import dsfmRouter from "./routes/dsfm";
 import marketRouter from "./routes/market";
@@ -53,7 +54,7 @@ app.use(
         return callback(null, true);
       }
 
-      console.warn("Blocked by CORS:", origin);
+      logger.warn({ origin }, "Blocked by CORS");
       return callback(new Error("Not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -70,7 +71,7 @@ app.options("*", cors());
 /* -------------------------------------------------------------------------- */
 
 app.use(helmet());
-app.use(morgan("combined"));
+app.use(requestLogger);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -198,7 +199,7 @@ app.use("*", (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("❌ Server Error:", err.message);
+  logger.error({ err }, "❌ Server Error");
 
   res.status(500).json({
     status: "error",
@@ -215,9 +216,5 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 /* -------------------------------------------------------------------------- */
 
 app.listen(PORT, () => {
-  console.log("=================================");
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${ENV.NODE_ENV}`);
-  console.log(`🌐 Health: /health`);
-  console.log("=================================");
+  logger.info({ port: PORT, env: ENV.NODE_ENV }, "🚀 Server running");
 });

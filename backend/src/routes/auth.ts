@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import { Timestamp } from "firebase-admin/firestore";
 
 import { ENV } from "../config/env";
+import { logger } from "../lib/logger";
 import { verifyToken } from "../middleware/auth";
 import { authService } from "../services/auth";
 import { appEvents, AppEventType } from "../services/event-emitter";
@@ -63,12 +64,17 @@ const logSubmission = (
   const ip = req.ip || req.socket.remoteAddress || "unknown";
   const userAgent = req.get("User-Agent") || "unknown";
 
-  console.log(`[${timestamp}] AUTH_${type}_${status}:`, {
-    ip,
-    userAgent,
-    message: message || `${type} ${status.toLowerCase()}`,
-    email: req.body?.email ? `${req.body.email.substring(0, 3)}***` : "unknown",
-  });
+  logger.info(
+    {
+      ip,
+      userAgent,
+      message: message || `${type} ${status.toLowerCase()}`,
+      email: req.body?.email
+        ? `${req.body.email.substring(0, 3)}***`
+        : "unknown",
+    },
+    `[${timestamp}] AUTH_${type}_${status}:`,
+  );
 };
 
 // Login endpoint with Firebase authentication
@@ -246,7 +252,7 @@ router.post(
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Signup error:", error);
+      logger.error({ err: error }, "Signup error:");
       logSubmission(
         req,
         "SIGNUP",
@@ -283,7 +289,7 @@ router.get("/health", async (_req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Health check error:", error);
+    logger.error({ err: error }, "Health check error:");
     return res.status(503).json({
       status: "unhealthy",
       service: "authentication",
@@ -324,7 +330,7 @@ router.get("/user/:uid", verifyToken, async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Get user profile error:", error);
+    logger.error({ err: error }, "Get user profile error:");
     return res.status(500).json({
       status: "error",
       message: "Failed to get user profile",
@@ -362,7 +368,7 @@ router.put(
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Update last login error:", error);
+      logger.error({ err: error }, "Update last login error:");
       return res.status(500).json({
         status: "error",
         message: "Failed to update last login time",
@@ -401,7 +407,7 @@ router.post(
 
         // In a production environment, you would send this link via email
         // For now, we'll just return success
-        console.log(`Password reset link generated for ${email}: ${resetLink}`);
+        logger.info(`Password reset link generated for ${email}: ${resetLink}`);
 
         return res.json({
           status: "success",
@@ -426,7 +432,7 @@ router.post(
         });
       }
     } catch (error) {
-      console.error("Password reset error:", error);
+      logger.error({ err: error }, "Password reset error:");
       return res.status(500).json({
         status: "error",
         message: "Internal server error during password reset",
@@ -532,7 +538,7 @@ router.post(
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Google auth error:", error);
+      logger.error({ err: error }, "Google auth error:");
       return res.status(500).json({
         status: "error",
         message: "Google authentication failed",

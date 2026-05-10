@@ -3,6 +3,7 @@ import { UserRecord } from "firebase-admin/auth";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { firebaseAuth, firebaseFirestore } from "../config/firebase";
+import { logger } from "../lib/logger";
 
 // Standardized user data schema following Firebase best practices
 export interface UserProfile {
@@ -111,7 +112,7 @@ export class FirebaseAuthService {
         user: userProfile || undefined,
       };
     } catch (error: any) {
-      console.error("Error creating user:", error);
+      logger.error({ err: error }, "Error creating user:");
       return {
         success: false,
         error: error.message || "Failed to create user",
@@ -154,7 +155,7 @@ export class FirebaseAuthService {
         user: userProfile || undefined,
       };
     } catch (error: any) {
-      console.error("Error signing in user:", error);
+      logger.error({ err: error }, "Error signing in user:");
       return {
         success: false,
         error: error.message || "Authentication failed",
@@ -185,7 +186,7 @@ export class FirebaseAuthService {
       const userData = snap.docs[0].data();
       return this.mapToUserProfile(userRecord, userData);
     } catch (error) {
-      console.error("Error getting user profile:", error);
+      logger.error({ err: error }, "Error getting user profile:");
       return null;
     }
   }
@@ -206,7 +207,7 @@ export class FirebaseAuthService {
         .get();
 
       if (snap.empty) {
-        console.warn(`No profile found for uid: ${uid}`);
+        logger.warn(`No profile found for uid: ${uid}`);
         return false;
       }
 
@@ -217,7 +218,7 @@ export class FirebaseAuthService {
 
       return true;
     } catch (error) {
-      console.error("Error updating user profile:", error);
+      logger.error({ err: error }, "Error updating user profile:");
       return false;
     }
   }
@@ -336,7 +337,7 @@ export class FirebaseAuthService {
         updatedAt: Timestamp.now(),
       });
     } catch (error) {
-      console.error("Error updating last login time:", error);
+      logger.error({ err: error }, "Error updating last login time:");
     }
   }
 
