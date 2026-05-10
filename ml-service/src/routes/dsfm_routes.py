@@ -98,13 +98,17 @@ def lstm_route(body: ReturnsRequest) -> dict[str, Any]:
 def finbert_route(body: SentimentRequest) -> dict[str, Any]:
     warmup = get_finbert_warmup_status()
     if not warmup["ready"]:
-        message = warmup.get("error") or "FinBERT model is still loading, please retry shortly"
+        message = warmup.get("error") or "FinBERT is not ready, please retry shortly"
         raise HTTPException(
             status_code=503,
             detail=message,
-            headers={"Retry-After": "30"},
+            headers={"Retry-After": "20"},
         )
-    return run_finbert_sentiment(body.text)
+    try:
+        return run_finbert_sentiment(body.text)
+    except RuntimeError as exc:
+        # Covers: HF API timeout, model warming up on HF side, auth errors
+        raise HTTPException(status_code=503, detail=str(exc), headers={"Retry-After": "20"}) from exc
 
 
 @router.post("/sentiment/rule-based")

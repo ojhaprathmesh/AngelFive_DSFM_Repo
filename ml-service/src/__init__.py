@@ -20,11 +20,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start FinBERT warmup in background on startup."""
+    """Start FinBERT warmup in background on startup, with a slight delay so uvicorn can bind."""
     logger.info("🚀 Starting AngelFive ML Service")
-    threading.Thread(target=warmup_finbert_model, daemon=True).start()
+    
+    async def delayed_warmup():
+        await asyncio.sleep(2)  # Give uvicorn 2 seconds to bind to $PORT
+        logger.info("Initiating delayed model warmup...")
+        threading.Thread(target=warmup_finbert_model, daemon=True).start()
+        
+    asyncio.create_task(delayed_warmup())
+    
     yield
     logger.info("🛑 Shutting down AngelFive ML Service")
 

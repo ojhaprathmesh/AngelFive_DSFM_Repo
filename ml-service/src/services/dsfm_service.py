@@ -1,15 +1,11 @@
-﻿import numpy as np
-import torch
-from arch import arch_model
-from scipy.optimize import minimize
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import acf, adfuller, pacf
+import numpy as np
 
 from src.models.model_loader import get_lstm_model
 from src.utils.serialization import params_to_dict
 
 
 def adf_test(returns):
+    from statsmodels.tsa.stattools import adfuller
     result = adfuller(np.array(returns), autolag="AIC")
     is_stationary = result[1] < 0.05
     return {
@@ -22,6 +18,7 @@ def adf_test(returns):
 
 
 def acf_pacf(returns, max_lags=20):
+    from statsmodels.tsa.stattools import acf, pacf
     arr = np.array(returns)
     return {
         "lags": list(range(max_lags + 1)),
@@ -32,6 +29,7 @@ def acf_pacf(returns, max_lags=20):
 
 
 def arima_forecast(returns, order=(1, 0, 1), steps=5):
+    from statsmodels.tsa.arima.model import ARIMA
     arr = np.array(returns)
     fitted = ARIMA(arr, order=tuple(order)).fit()
     forecast = fitted.forecast(steps=steps)
@@ -47,6 +45,7 @@ def arima_forecast(returns, order=(1, 0, 1), steps=5):
 
 
 def garch_forecast(returns, order=(1, 1), horizon=5):
+    from arch import arch_model
     arr = np.array(returns)
     fitted = arch_model(arr * 100, vol="Garch", p=order[0], q=order[1]).fit(disp="off")
     cond_vol = fitted.conditional_volatility / 100
@@ -62,6 +61,7 @@ def garch_forecast(returns, order=(1, 1), horizon=5):
 
 
 def lstm_forecast(returns, lookback=10, forecast_steps=5):
+    import torch
     arr = np.array(returns, dtype=np.float32)
     if len(arr) < lookback + 5:
         raise ValueError(f"Insufficient data. Need at least {lookback + 5} data points")
@@ -97,6 +97,7 @@ def lstm_forecast(returns, lookback=10, forecast_steps=5):
 
 
 def mpt_optimize(returns, symbols, risk_free_rate=0.06):
+    from scipy.optimize import minimize
     returns_matrix = np.array(returns, dtype=float)
     n_assets = len(symbols)
     expected_returns = np.mean(returns_matrix, axis=1) * 252
@@ -162,6 +163,7 @@ def mpt_optimize(returns, symbols, risk_free_rate=0.06):
 
 
 def black_litterman_optimize(returns, symbols, views=None, risk_aversion=3.0, tau=0.05):
+    from scipy.optimize import minimize
     returns_matrix = np.array(returns, dtype=float)
     cov_matrix = np.cov(returns_matrix) * 252
     inv_vol = 1.0 / (np.diag(cov_matrix) + 1e-10)
