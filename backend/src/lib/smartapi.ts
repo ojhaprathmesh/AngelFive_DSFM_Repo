@@ -10,6 +10,14 @@ import { logger } from "./logger";
 let jwtTokenCache: string | null = null;
 let jwtTokenExpiry = 0;
 
+/** One in-flight login shared by all callers (avoids Angel One rate limits on parallel logins). */
+let jwtLoginInFlight: Promise<string | null> | null = null;
+
+/** After broker returns 403 rate limit, do not attempt login again until this instant. */
+let loginBackoffUntilMs = 0;
+
+const LOGIN_RATE_LIMIT_BACKOFF_MS = 120_000;
+
 /* ---------------------------------- */
 /* TOTP Generator                     */
 /* ---------------------------------- */
@@ -22,12 +30,7 @@ function generateTOTP(secret: string): string {
 /* JWT TOKEN                          */
 /* ---------------------------------- */
 
-export async function getSmartApiJwtToken(): Promise<string | null> {
-  // Use cached token (5 min buffer before expiry)
-  if (jwtTokenCache && Date.now() < jwtTokenExpiry - 5 * 60 * 1000) {
-    return jwtTokenCache;
-  }
-
+async function loginOnce(): Promise<string | null> {
   try {
     const totp = generateTOTP(ENV.SMARTAPI_TOTP_SECRET);
 
@@ -53,7 +56,29 @@ export async function getSmartApiJwtToken(): Promise<string | null> {
       },
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      const rateLimited =
+        response.status === 403 &&
+        /exceeding access rate|rate limit/i.test(errText);
+      if (rateLimited) {
+        loginBackoffUntilMs = Date.now() + LOGIN_RATE_LIMIT_BACKOFF_MS;
+        logger.warn(
+          { backoffMs: LOGIN_RATE_LIMIT_BACKOFF_MS },
+          "[SmartAPI] Login rate-limited — backing off duplicate login attempts",
+        );
+      } else {
+        logger.error(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            error: errText.slice(0, 500),
+          },
+          "[SmartAPI] Login HTTP error:",
+        );
+      }
+      return null;
+    }
 
     const data: any = await response.json();
 
@@ -64,6 +89,7 @@ export async function getSmartApiJwtToken(): Promise<string | null> {
 
     jwtTokenCache = data.data.jwtToken;
     jwtTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+    loginBackoffUntilMs = 0;
 
     return jwtTokenCache;
   } catch (error) {
@@ -72,6 +98,31 @@ export async function getSmartApiJwtToken(): Promise<string | null> {
     logger.error({ err: error }, "SmartAPI login failed:");
     return null;
   }
+}
+
+export async function getSmartApiJwtToken(): Promise<string | null> {
+  const now = Date.now();
+
+  // Use cached token (5 min buffer before expiry)
+  if (jwtTokenCache && now < jwtTokenExpiry - 5 * 60 * 1000) {
+    return jwtTokenCache;
+  }
+
+  if (now < loginBackoffUntilMs) {
+    logger.warn(
+      { retryAfterMs: loginBackoffUntilMs - now },
+      "[SmartAPI] Login skipped during broker rate-limit cooldown",
+    );
+    return jwtTokenCache && now < jwtTokenExpiry ? jwtTokenCache : null;
+  }
+
+  if (!jwtLoginInFlight) {
+    jwtLoginInFlight = loginOnce().finally(() => {
+      jwtLoginInFlight = null;
+    });
+  }
+
+  return jwtLoginInFlight;
 }
 
 /* ---------------------------------- */

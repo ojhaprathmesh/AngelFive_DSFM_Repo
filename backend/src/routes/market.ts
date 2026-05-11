@@ -8,6 +8,7 @@ import {
   fetchSmartApiQuotes,
   getSmartApiJwtToken,
   hasSmartApiCredentials,
+  type SmartApiQuoteItem,
 } from "../lib/smartapi";
 import { verifyToken } from "../middleware/auth";
 import { swrCache, TTL } from "../services/cache";
@@ -53,43 +54,78 @@ function mapNSERowToQuote(r: any): Quote {
   };
 }
 
+/** When NSE blocks cloud IPs (403), SmartAPI basket covers discovery / performers / movers. */
+const SMARTAPI_MARKET_BASKET: Record<string, string[]> = {
+  NSE: [
+    "2885", // RELIANCE
+    "11536", // TCS
+    "1333", // HDFCBANK
+    "4963", // ICICIBANK
+    "1594", // INFY
+    "3045", // SBIN
+    "3456", // TATAMOTORS
+    "4717", // NTPC
+    "14366", // IDEA
+    "3351", // SUZLON
+    "11915", // YESBANK
+    "5097", // ZOMATO
+    "10940", // DIVISLAB
+    "13611", // IRCTC
+    "11483", // LT
+  ],
+};
+
+function mapSmartQuoteToQuote(q: SmartApiQuoteItem): Quote {
+  return {
+    symbol: q.symbol.replace("-EQ", ""),
+    regularMarketPrice: q.price || 0,
+    regularMarketChange: q.change || 0,
+    regularMarketChangePercent: q.changePercent || 0,
+    regularMarketVolume: q.volume ?? 0,
+  };
+}
+
+async function fetchQuotesFromSmartApiBasket(): Promise<Quote[]> {
+  try {
+    const smartQuotes = await fetchSmartApiQuotes(SMARTAPI_MARKET_BASKET);
+    if (smartQuotes.length === 0) return [];
+    return smartQuotes.map(mapSmartQuoteToQuote);
+  } catch (e) {
+    logger.error({ err: e }, "[Market] SmartAPI basket quotes failed");
+    return [];
+  }
+}
+
+/** NSE index rows, or SmartAPI basket when NSE is blocked (e.g. Render / Akamai 403). */
+async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
+  const rows = await fetchNSEIndex("NIFTY 500");
+  if (rows && rows.length > 0) return rows.map(mapNSERowToQuote);
+  logger.warn(
+    "[Market] NSE index empty or blocked — using SmartAPI basket for quotes",
+  );
+  return fetchQuotesFromSmartApiBasket();
+}
+
 async function fetchDiscoveryData() {
   const rows = await fetchNSEIndex("NIFTY 500");
   let quotes: Quote[] = [];
+  let source: "nse" | "smartapi" | "none" = "none";
 
   if (rows && rows.length > 0) {
     quotes = rows.map(mapNSERowToQuote);
+    source = "nse";
   } else {
     // Fallback: Fetch popular tokens from SmartAPI since NSE scraping often gets blocked
-    const popular = {
-      NSE: [
-        "2885", // RELIANCE
-        "11536", // TCS
-        "1333", // HDFCBANK
-        "4963", // ICICIBANK
-        "1594", // INFY
-        "3045", // SBIN
-        "3456", // TATAMOTORS
-        "4717", // NTPC
-        "14366", // IDEA (Penny)
-        "3351", // SUZLON (Penny)
-        "11915", // YESBANK (Penny)
-        "5097", // ZOMATO
-        "10940", // DIVISLAB
-        "13611", // IRCTC
-        "11483", // LT
-      ],
-    };
     try {
-      const smartQuotes = await fetchSmartApiQuotes(popular);
+      const smartQuotes = await fetchSmartApiQuotes(SMARTAPI_MARKET_BASKET);
+      source = smartQuotes.length > 0 ? "smartapi" : "none";
       quotes = smartQuotes.map((q) => ({
-        symbol: q.symbol.replace("-EQ", ""),
-        regularMarketPrice: q.price || 0,
-        regularMarketChange: q.change || 0,
-        regularMarketChangePercent: q.changePercent || 0,
-        regularMarketVolume: q.volume || Math.floor(Math.random() * 10000000), // Mock volume if missing
+        ...mapSmartQuoteToQuote(q),
+        regularMarketVolume: q.volume || Math.floor(Math.random() * 10_000_000), // Mock volume if missing
       }));
-    } catch {
+    } catch (e) {
+      logger.error({ err: e }, "[Discovery] SmartAPI fallback failed");
+      source = "none";
       quotes = [];
     }
   }
@@ -114,6 +150,10 @@ async function fetchDiscoveryData() {
     .slice(0, 8);
 
   return {
+    meta: {
+      source,
+      fetchedAt: new Date().toISOString(),
+    },
     mostBought,
     topGainers,
     topLosers,
@@ -189,9 +229,9 @@ async function fetchPerformersData(
 ): Promise<Array<{ symbol: string; price: number; changePct: number }>> {
   logger.info(`[Performers] Fetching fresh data for timeframe: ${tf}`);
 
-  const rows = await fetchNSEIndex("NIFTY 500");
-  if (rows.length === 0) {
-    logger.info("[Performers] No data from NSE index");
+  const quotes = await fetchQuotesForMarketPanels();
+  if (quotes.length === 0) {
+    logger.warn("[Performers] No quotes from NSE or SmartAPI basket");
     return [];
   }
 
@@ -212,16 +252,24 @@ async function fetchPerformersData(
   const fromDateStr = formatDateForNSE(from);
   const toDateStr = formatDateForNSE(now);
 
-  // Get current prices
-  const quotes: Quote[] = rows.map(mapNSERowToQuote);
-
-  // Filter valid stocks with good volume, sort by volume
-  const validStocks = quotes
+  // Prefer liquid names; relax volume when NSE is blocked (SmartAPI may omit volume)
+  let validStocks = quotes
     .filter(
       (q) => q.regularMarketPrice > 0 && (q.regularMarketVolume || 0) > 10000,
     )
     .sort((a, b) => (b.regularMarketVolume || 0) - (a.regularMarketVolume || 0))
-    .slice(0, 30); // Limit to top 30 by volume to avoid too many API calls
+    .slice(0, 30);
+
+  if (validStocks.length < 4) {
+    validStocks = [...quotes]
+      .filter((q) => q.regularMarketPrice > 0)
+      .sort(
+        (a, b) =>
+          Math.abs(b.regularMarketChangePercent) -
+          Math.abs(a.regularMarketChangePercent),
+      )
+      .slice(0, 30);
+  }
 
   logger.info(`[Performers] Processing ${validStocks.length} stocks`);
 
@@ -350,10 +398,12 @@ router.get("/quotes", async (req: Request, res: Response): Promise<void> => {
       .split(",")
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
-    const rows = await fetchNSEIndex("NIFTY 500");
-    const quotesAll: Quote[] = rows
-      .map(mapNSERowToQuote)
-      .map((q) => ({ ...q, symbol: q.symbol.toUpperCase() }));
+    const quotesAll: Quote[] = (await fetchQuotesForMarketPanels()).map(
+      (q) => ({
+        ...q,
+        symbol: q.symbol.toUpperCase(),
+      }),
+    );
     const filtered = quotesAll
       .filter((q) => wanted.includes(q.symbol))
       .map((q) => ({
@@ -924,7 +974,18 @@ router.post("/gainers-losers", async (req: Request, res: Response) => {
     }
 
     const rows = await fetchNSEIndex("NIFTY 500");
-    const quotes: Quote[] = rows.map(mapNSERowToQuote);
+    let quotes: Quote[] = rows.map(mapNSERowToQuote);
+    let source: "nse" | "nse-smartapi-fallback" | "none" = "nse";
+
+    if (quotes.length === 0) {
+      quotes = await fetchQuotesFromSmartApiBasket();
+      source = quotes.length > 0 ? "nse-smartapi-fallback" : "none";
+    }
+
+    if (quotes.length === 0) {
+      return res.json({ source: "none", gainers: [], losers: [] });
+    }
+
     const gainers = [...quotes]
       .sort(
         (a, b) => b.regularMarketChangePercent - a.regularMarketChangePercent,
@@ -935,7 +996,7 @@ router.post("/gainers-losers", async (req: Request, res: Response) => {
         (a, b) => a.regularMarketChangePercent - b.regularMarketChangePercent,
       )
       .slice(0, 15);
-    return res.json({ source: "nse", gainers, losers });
+    return res.json({ source, gainers, losers });
   } catch (e) {
     return res.status(500).json({ error: "failed_to_fetch_gainers_losers" });
   }

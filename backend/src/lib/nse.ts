@@ -2,6 +2,10 @@ let cookieCache = "";
 let cookieTime = 0;
 const COOKIE_TTL_MS = 10 * 60 * 1000;
 
+function truncate(s: string, max = 300): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
 export async function getNSECookie(): Promise<string> {
   if (cookieCache && Date.now() - cookieTime < COOKIE_TTL_MS)
     return cookieCache;
@@ -14,7 +18,17 @@ export async function getNSECookie(): Promise<string> {
       "Accept-Language": "en-US,en;q=0.9",
     },
   });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+
+    console.warn(
+      `[NSE] Cookie bootstrap HTTP ${resp.status} ${resp.statusText}: ${truncate(text)}`,
+    );
+  }
   const cookieHeader = resp.headers.get("set-cookie") || "";
+  if (!cookieHeader) {
+    console.warn("[NSE] No set-cookie received from bootstrap request");
+  }
   cookieCache = cookieHeader;
   cookieTime = Date.now();
   return cookieHeader;
@@ -35,7 +49,14 @@ export async function fetchNSEIndex(
       Cookie: cookie,
     },
   });
-  if (!resp.ok) return [];
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+
+    console.warn(
+      `[NSE] Index fetch HTTP ${resp.status} ${resp.statusText} (${indexName}): ${truncate(text)}`,
+    );
+    return [];
+  }
   const json: any = await resp.json();
   return json?.data || [];
 }

@@ -112,14 +112,34 @@ export default function MarketDiscovery() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             datatype: "PercPriceGainers",
-            expirytype: "NEAR",
+            expiryType: "NEAR",
           }),
         });
         if (resp.ok) {
           const jl: {
             source: string;
             items?: Array<{ tradingSymbol: string; percentChange?: number }>;
+            gainers?: QuoteLike[];
+            losers?: QuoteLike[];
           } = await resp.json();
+
+          if (
+            (jl.source === "nse" || jl.source === "nse-smartapi-fallback") &&
+            Array.isArray(jl.gainers) &&
+            Array.isArray(jl.losers)
+          ) {
+            const mapQ = (q: QuoteLike): MarketData => ({
+              symbol: q.symbol,
+              price: Number(q.regularMarketPrice || 0),
+              change: Number(q.regularMarketChange || 0),
+              changePercent: Number(q.regularMarketChangePercent || 0),
+              lastUpdated: new Date().toISOString(),
+            });
+            setGainers(jl.gainers.slice(0, 8).map(mapQ));
+            setLosers(jl.losers.slice(0, 8).map(mapQ));
+            return;
+          }
+
           if (jl.source === "smartapi" && Array.isArray(jl.items)) {
             const mapItem = (x: {
               tradingSymbol: string;
@@ -139,7 +159,7 @@ export default function MarketDiscovery() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 datatype: "PercPriceLosers",
-                expirytype: "NEAR",
+                expiryType: "NEAR",
               }),
             });
             if (resp2.ok) {
