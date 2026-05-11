@@ -18,9 +18,14 @@ import { logger } from "./logger";
 
 // ── Health state ─────────────────────────────────────────────────────────────
 
-export type RedisStatus = "connecting" | "connected" | "disconnected" | "error";
+export type RedisStatus =
+  | "disabled"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
-let _status: RedisStatus = "connecting";
+let _status: RedisStatus = ENV.REDIS_URL ? "connecting" : "disabled";
 let _latencyMs: number | null = null;
 
 export function getRedisStatus(): {
@@ -30,11 +35,23 @@ export function getRedisStatus(): {
   return { status: _status, latencyMs: _latencyMs };
 }
 
+export function isRedisEnabled(): boolean {
+  return Boolean(ENV.REDIS_URL);
+}
+
 // ── Client singleton ──────────────────────────────────────────────────────────
 
 let _client: Redis | null = null;
 
 function createClient(): Redis {
+  if (!ENV.REDIS_URL) {
+    throw new Error("REDIS_URL is not set");
+  }
+  const isTls = ENV.REDIS_URL.startsWith("rediss://");
+  const rejectUnauthorizedRaw =
+    process.env.REDIS_TLS_REJECT_UNAUTHORIZED ?? "true";
+  const rejectUnauthorized = rejectUnauthorizedRaw !== "false";
+
   const client = new Redis(ENV.REDIS_URL, {
     // Disable ioredis auto-reconnect; we control it via retryStrategy
     lazyConnect: false,
@@ -59,6 +76,13 @@ function createClient(): Redis {
 
     // Keep connection alive
     keepAlive: 10_000,
+
+    // Managed Redis providers commonly require TLS (`rediss://`)
+    ...(isTls
+      ? {
+          tls: { rejectUnauthorized },
+        }
+      : {}),
 
     // Disable verbose ioredis debug output
     enableReadyCheck: true,
@@ -105,10 +129,13 @@ function createClient(): Redis {
   return client;
 }
 
-export function getRedisClient(): Redis {
-  if (!_client) {
-    _client = createClient();
+export function getRedisClient(): Redis | null {
+  if (!ENV.REDIS_URL) {
+    _status = "disabled";
+    _latencyMs = null;
+    return null;
   }
+  if (!_client) _client = createClient();
   return _client;
 }
 
@@ -119,6 +146,7 @@ export function getRedisClient(): Redis {
 async function probeLatency(): Promise<void> {
   try {
     const client = getRedisClient();
+    if (!client) return;
     if (_status !== "connected") return;
     const start = Date.now();
     await client.ping();
@@ -129,7 +157,9 @@ async function probeLatency(): Promise<void> {
 }
 
 // Probe every 30 seconds in the background
-setInterval(() => void probeLatency(), 30_000);
+if (ENV.REDIS_URL) {
+  setInterval(() => void probeLatency(), 30_000);
+}
 
 // Initialise eagerly so the connection is ready before the first request
 getRedisClient();

@@ -60,7 +60,9 @@ async function redisGet<T>(
   key: string,
 ): Promise<{ data: T; fetchedAt: number; ttl: number } | null> {
   try {
-    const raw = await getRedisClient().get(key);
+    const client = getRedisClient();
+    if (!client) return null;
+    const raw = await client.get(key);
     if (!raw) return null;
     return JSON.parse(raw) as { data: T; fetchedAt: number; ttl: number };
   } catch {
@@ -74,8 +76,13 @@ async function redisSet<T>(
   ttlMs: number,
 ): Promise<void> {
   try {
+    const client = getRedisClient();
+    if (!client) {
+      log("ERROR", key, "redis disabled");
+      return;
+    }
     const ttlSec = Math.ceil(ttlMs / 1000);
-    await getRedisClient().set(key, JSON.stringify(value), "EX", ttlSec);
+    await client.set(key, JSON.stringify(value), "EX", ttlSec);
     log("SET", key, `ttl=${ttlSec}s`);
   } catch (err: any) {
     log("ERROR", key, err?.message ?? "redis set failed");
@@ -84,7 +91,9 @@ async function redisSet<T>(
 
 async function redisDel(key: string): Promise<boolean> {
   try {
-    const count = await getRedisClient().del(key);
+    const client = getRedisClient();
+    if (!client) return false;
+    const count = await client.del(key);
     return count > 0;
   } catch {
     return false;
@@ -95,6 +104,7 @@ async function redisScan(pattern: string): Promise<string[]> {
   const keys: string[] = [];
   try {
     const client = getRedisClient();
+    if (!client) return keys;
     let cursor = "0";
     do {
       const [nextCursor, batch] = await client.scan(
@@ -228,7 +238,8 @@ class SWRCacheService {
     const redisKeys = await redisScan(pattern);
     if (redisKeys.length > 0) {
       try {
-        count += await getRedisClient().del(...redisKeys);
+        const client = getRedisClient();
+        if (client) count += await client.del(...redisKeys);
       } catch {
         // ignore
       }

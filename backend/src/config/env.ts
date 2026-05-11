@@ -97,6 +97,8 @@ export const ENV: Env = {
     process.env.ML_SERVICE_URL ||
     (isDev ? "http://localhost:8000" : requiredEnv("ML_SERVICE_URL")),
 
-  // Redis — optional; falls back to localhost for local dev without Docker
-  REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
+  // Redis — optional.
+  // - Dev default keeps local setup easy.
+  // - Prod/test default is empty, so we never "accidentally" try localhost on Render.
+  REDIS_URL: process.env.REDIS_URL ?? (isDev ? "redis://localhost:6379" : ""),
 };
