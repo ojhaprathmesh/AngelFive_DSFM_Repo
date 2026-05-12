@@ -98,7 +98,7 @@ async function fetchQuotesFromSmartApiBasket(): Promise<Quote[]> {
 
 /** NSE index rows, or SmartAPI basket when NSE is blocked (e.g. Render / Akamai 403). */
 async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
-  const rows = await fetchNSEIndex("NIFTY 500");
+  const rows = await fetchNSEIndex("NIFTY 50");
   if (rows && rows.length > 0) return rows.map(mapNSERowToQuote);
   logger.warn(
     "[Market] NSE index empty or blocked — using SmartAPI basket for quotes",
@@ -107,7 +107,7 @@ async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
 }
 
 async function fetchDiscoveryData() {
-  const rows = await fetchNSEIndex("NIFTY 500");
+  const rows = await fetchNSEIndex("NIFTY 50");
   let quotes: Quote[] = [];
   let source: "nse" | "smartapi" | "none" = "none";
 
@@ -149,6 +149,11 @@ async function fetchDiscoveryData() {
     .filter((q) => q.regularMarketPrice > 0 && q.regularMarketPrice <= 200)
     .slice(0, 8);
 
+  logger.info(
+    { source, quoteCount: quotes.length },
+    "[Discovery] Fetched discovery quotes",
+  );
+
   return {
     meta: {
       source,
@@ -180,6 +185,11 @@ async function fetchSmartApiHistoricalPrice(
   toDate: string,
 ): Promise<{ startPrice: number; endPrice: number } | null> {
   try {
+    // The AngelOne instrument master is a very large JSON file and can cause OOM
+    // on low-memory instances (e.g. 512MB). In production we skip this path and
+    // rely on the estimated-performers fallback later in the pipeline.
+    if (ENV.NODE_ENV === "production") return null;
+
     const instruments = await loadInstrumentMaster();
     const upper = symbol.toUpperCase();
     const match = instruments.find((item: any) => {
@@ -973,7 +983,7 @@ router.post("/gainers-losers", async (req: Request, res: Response) => {
       return res.json({ source: "smartapi", items });
     }
 
-    const rows = await fetchNSEIndex("NIFTY 500");
+    const rows = await fetchNSEIndex("NIFTY 50");
     let quotes: Quote[] = rows.map(mapNSERowToQuote);
     let source: "nse" | "nse-smartapi-fallback" | "none" = "nse";
 

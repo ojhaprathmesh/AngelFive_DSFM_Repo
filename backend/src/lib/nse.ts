@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 let cookieCache = "";
 let cookieTime = 0;
 const COOKIE_TTL_MS = 10 * 60 * 1000;
@@ -21,13 +23,18 @@ export async function getNSECookie(): Promise<string> {
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
 
-    console.warn(
-      `[NSE] Cookie bootstrap HTTP ${resp.status} ${resp.statusText}: ${truncate(text)}`,
+    logger.warn(
+      {
+        status: resp.status,
+        statusText: resp.statusText,
+        body: truncate(text),
+      },
+      "[NSE] Cookie bootstrap failed",
     );
   }
   const cookieHeader = resp.headers.get("set-cookie") || "";
   if (!cookieHeader) {
-    console.warn("[NSE] No set-cookie received from bootstrap request");
+    logger.warn("[NSE] No set-cookie received from bootstrap request");
   }
   cookieCache = cookieHeader;
   cookieTime = Date.now();
@@ -35,7 +42,7 @@ export async function getNSECookie(): Promise<string> {
 }
 
 export async function fetchNSEIndex(
-  indexName: string = "NIFTY 500",
+  indexName: string = "NIFTY 50",
 ): Promise<any[]> {
   const cookie = await getNSECookie();
   const url = `https://www.nseindia.com/api/equity-stockIndices?index=${encodeURIComponent(indexName)}`;
@@ -45,15 +52,21 @@ export async function fetchNSEIndex(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "application/json,text/plain,*/*",
       Referer:
-        "https://www.nseindia.com/market-data/live-equity-market?symbol=NIFTY%20500",
+        "https://www.nseindia.com/market-data/live-equity-market?symbol=NIFTY%2050",
       Cookie: cookie,
     },
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
 
-    console.warn(
-      `[NSE] Index fetch HTTP ${resp.status} ${resp.statusText} (${indexName}): ${truncate(text)}`,
+    logger.warn(
+      {
+        status: resp.status,
+        statusText: resp.statusText,
+        index: indexName,
+        body: truncate(text),
+      },
+      "[NSE] Index fetch failed",
     );
     return [];
   }
