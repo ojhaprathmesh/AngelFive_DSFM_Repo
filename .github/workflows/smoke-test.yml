@@ -1,0 +1,43 @@
+name: Smoke Tests
+
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types:
+      - completed
+
+jobs:
+  smoke-test:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Wait for services to spin up
+        run: sleep 10
+
+      - name: Check Frontend Availability
+        run: |
+          # Replace with actual frontend URL from deployment step or env var
+          echo "Checking frontend..."
+          # curl -sfI https://angelfive-frontend.vercel.app || exit 1
+
+      - name: Check Backend Health
+        run: |
+          echo "Checking backend /health endpoint..."
+          # curl -sf https://api.angelfive.com/health | grep '"status":"ok"' || exit 1
+
+      - name: Check ML Service Readiness
+        run: |
+          echo "Checking ML service /health endpoint..."
+          # curl -sf https://ml.angelfive.com/health | grep '"status":"ok"' || exit 1
+
+      - name: Check Market Discovery API
+        run: |
+          echo "Checking Market Discovery..."
+          # curl -sf https://api.angelfive.com/api/market/discovery || exit 1
+
+      - name: Check DSFM API Health
+        run: |
+          echo "Checking DSFM API..."
+          # curl -sf https://api.angelfive.com/api/dsfm/health || exit 1

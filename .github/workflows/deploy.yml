@@ -1,0 +1,70 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI", "Docker Build & Publish"]
+    types:
+      - completed
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'dev' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Frontend to Vercel (Preview)
+        run: |
+          echo "Deploying frontend to Vercel Preview..."
+          # Uses Vercel CLI internally in real life
+          # vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          # vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          # vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+          echo "Frontend deployment mock complete."
+
+      - name: Deploy Backend to Render/Railway
+        run: |
+          echo "Triggering backend staging deployment webhook..."
+          # curl -X POST ${{ secrets.BACKEND_STAGING_DEPLOY_WEBHOOK }}
+          echo "Backend deployment mock complete."
+
+      - name: Deploy ML Service to Render/Railway
+        run: |
+          echo "Triggering ML Service staging deployment webhook..."
+          # curl -X POST ${{ secrets.ML_SERVICE_STAGING_DEPLOY_WEBHOOK }}
+          echo "ML Service deployment mock complete."
+
+  deploy-production:
+    name: Deploy to Production
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Frontend to Vercel (Production)
+        run: |
+          echo "Deploying frontend to Vercel Production..."
+          # vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          # vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          # vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+          echo "Frontend deployment mock complete."
+
+      - name: Deploy Backend to Render/Railway
+        run: |
+          echo "Triggering backend production deployment webhook..."
+          # curl -X POST ${{ secrets.BACKEND_PROD_DEPLOY_WEBHOOK }}
+          echo "Backend deployment mock complete."
+
+      - name: Deploy ML Service to Render/Railway
+        run: |
+          echo "Triggering ML Service production deployment webhook..."
+          # curl -X POST ${{ secrets.ML_SERVICE_PROD_DEPLOY_WEBHOOK }}
+          echo "ML Service deployment mock complete."

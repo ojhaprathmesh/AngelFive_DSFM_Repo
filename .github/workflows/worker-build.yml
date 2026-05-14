@@ -1,0 +1,41 @@
+name: Worker Build
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'workers/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'workers/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-worker:
+    name: Build Worker Containers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        worker: [notification-worker, analytics-worker, market-worker]
+        
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Placeholder: Real implementation will be added once workers/ directory is created
+      - name: Verify Worker Directory
+        run: |
+          echo "Building ${{ matrix.worker }}..."
+          # if [ -d "workers/${{ matrix.worker }}" ]; then
+          #   echo "Directory exists. Proceeding with build."
+          # else
+          #   echo "Directory does not exist yet. Skipping."
+          # fi
