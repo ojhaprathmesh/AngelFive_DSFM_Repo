@@ -45,7 +45,7 @@
     "geist": "^1.7.0",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.575.0",
-    "next": "16.2.4",
+    "next": "16.2.6",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@next/eslint-plugin-next": "^16.2.4",
+    "@next/eslint-plugin-next": "^16.2.6",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
@@ -65,7 +65,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.2.6",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
@@ -80,7 +80,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "@swc/core",
-      "sharp"
+      "sharp",
+      "@firebase/util",
+      "protobufjs"
     ]
   }
 }

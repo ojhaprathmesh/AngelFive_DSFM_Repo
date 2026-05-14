@@ -1,8 +1,8 @@
 # 🏦 AngelFive — DSFM Analytics Platform
 
-[![CI](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/ci.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/ci.yml)
-[![Docker Build](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/docker-build.yml)
-[![Security Scan](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/security-scan.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_DSFM_Repo/actions/workflows/security-scan.yml)
+[![CI](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/ci.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/ci.yml)
+[![Docker Build](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/docker-build.yml)
+[![Security Scan](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/security-scan.yml/badge.svg)](https://github.com/ojhaprathmesh/AngelFive_Repo/actions/workflows/security-scan.yml)
 
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![Express](https://img.shields.io/badge/Backend-Express.js-blue?style=flat-square&logo=express)](https://expressjs.com/)

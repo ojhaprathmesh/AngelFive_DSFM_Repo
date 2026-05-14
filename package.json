@@ -65,6 +65,13 @@
       "uuid": "^9.0.1",
       "postcss": "^8.5.10",
       "@tootallnate/once": "^3.0.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@swc/core",
+      "sharp",
+      "@firebase/util",
+      "protobufjs"
+    ]
   }
 }
