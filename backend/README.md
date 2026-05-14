@@ -1,8 +1,8 @@
 # @angelfive/backend
 
-Express API gateway and orchestration layer for the AngelFive DSFM platform. Acts as the central bridge between the Next.js frontend, Firebase, external market APIs (SmartAPI, NSE, Yahoo Finance), and the ML inference service.
+Express API gateway and orchestration layer for the AngelFive DSFM platform. Acts as the high-availability central bridge between the Next.js frontend, Firebase, external market APIs (SmartAPI, Yahoo Finance), and the heavy-compute ML inference service.
 
-## Tech Stack
+## 🚀 Tech Stack & Engineering
 
 | Layer | Technology |
 |---|---|
@@ -10,46 +10,39 @@ Express API gateway and orchestration layer for the AngelFive DSFM platform. Act
 | Runtime | Node.js ≥ 22 |
 | Auth / Data | Firebase Admin SDK (Auth + Firestore) |
 | Security | `helmet`, `cors`, `express-rate-limit`, `express-validator` |
-| Market APIs | AngelOne SmartAPI, NSE, Yahoo Finance |
-| Logging | `pino` (Structured JSON) + `pino-http` (Request correlation IDs) |
-| Caching | `ioredis` (Distributed) with local LRU fallback |
-| OTP | `speakeasy` (TOTP for SmartAPI auth) |
-| Process | `nodemon -L` / `tsx` (dev), `node dist/server.js` (prod) |
+| Market APIs | AngelOne SmartAPI, Yahoo Finance |
+| Logging | `pino` (Structured JSON) + Redaction Policy |
+| Caching | **Redis** (Distributed) + Local SWR Fallback |
+| Process | `nodemon -L` (dev), `node dist/server.js` (prod) |
 
-## Prerequisites
+## 🏗️ Architectural Decisions
 
-- Node.js ≥ 22
-- pnpm ≥ 11 (managed via `corepack`)
-- Firebase project with Auth + Firestore enabled
-- AngelOne SmartAPI credentials
+- **The Gateway Pattern:** The backend isolates the Frontend from third-party APIs. The frontend never possesses API keys for SmartAPI or the ML service. 
+- **Redis & SWR Caching:** Due to strict rate limits on third-party financial APIs, the backend aggressively caches quote/candle data and expensive ML computations into Redis using a Stale-While-Revalidate (SWR) strategy.
+- **Secure Observability:** Built-in `pino` structured logging automatically enforces redaction policies, stripping Authorization headers, tokens, and password reset links from logs before they hit the terminal or data dog.
+- **Domain Event Bus:** Uses an internal `AppEventEmitter` to loosely couple business actions (like logins or watchlist creations) to background notification dispatches.
 
-## Local Setup
+## 🚦 Local Setup
 
 ### 1. Install dependencies
-
 From the **repository root**:
-
 ```bash
 pnpm install
 ```
 
 ### 2. Configure environment
-
 ```bash
 cp .env.example .env
 ```
-
-Fill in all values — see `.env.example` for the full list (Firebase, SmartAPI, deployment URLs).
+Ensure you provide a running Redis URL, Firebase Admin secrets, and AngelOne API credentials.
 
 ### 3. Start the dev server
-
 ```bash
 pnpm dev
 ```
-
 The backend runs on `http://localhost:5000` by default.
 
-## Project Structure
+## 📂 Project Structure
 
 ```text
 backend/
@@ -57,85 +50,44 @@ backend/
 │   ├── server.ts               # App bootstrap, CORS, middleware, route mounts
 │   ├── config/
 │   │   ├── env.ts              # Typed env validation (throws on missing vars)
-│   │   └── firebase.ts         # Firebase Admin SDK initialization
-│   ├── middleware/
-│   │   └── auth.ts             # Centralized verifyToken middleware
+│   │   └── firebase.ts         # Firebase Admin initialization
 │   ├── routes/
-│   │   ├── auth.ts             # Login/signup/Google OAuth/password-reset + event emission
-│   │   ├── market.ts           # Discovery, quotes, candles, token resolution, cache mgmt
-│   │   ├── watchlists.ts       # Watchlist CRUD + SSE stream + symbol mgmt
-│   │   ├── notifications.ts    # Notification CRUD + stats + SSE stream
-│   │   └── dsfm.ts             # Statistical analytics + ML service bridge
+│   │   ├── auth.ts             # OAuth, login, session mgmt
+│   │   ├── market.ts           # Redis-cached SmartAPI market discovery
+│   │   ├── watchlists.ts       # Watchlist CRUD + SSE stream
+│   │   └── dsfm.ts             # Bridge to FastAPI ML Service
 │   ├── services/
-│   │   ├── event-emitter.ts    # Singleton AppEventEmitter (domain event bus)
-│   │   ├── notification.ts     # NotificationService (Firestore persistence + dedup)
-│   │   └── cache.ts            # Distributed Redis cache with local SWR fallback
+│   │   ├── event-emitter.ts    # Internal event bus
+│   │   └── notification.ts     # Firestore-backed notification manager
 │   ├── lib/
-│   │   ├── smartapi.ts         # SmartAPI client with TOTP auth
-│   │   └── nse.ts              # NSE scraper with cookie bootstrap
+│   │   ├── logger.ts           # Pino configuration with strict redaction
+│   │   ├── redis.ts            # Redis connection manager
+│   │   └── smartapi.ts         # Authenticated SmartAPI client
 │   └── utils/
-│       └── mlFetch.ts          # ML service HTTP client with retry (10s→20s→30s)
-├── tsconfig.json               # Extends root tsconfig.base.json
-├── tsconfig.docker.json        # Self-contained tsconfig for Docker builds
+│       └── swrCache.ts         # Redis SWR Cache wrapper logic
 ├── Dockerfile                  # Multi-stage build (builder → runner)
-└── .env.example                # Environment variable template
+└── .env.example                # Environment variables
 ```
 
-## API Routes
+## 🔒 Security & Rate Limiting
 
-| Route | Auth | Description |
-|---|---|---|
-| `POST /api/auth/login` | ✗ | Email/password login → Firebase custom token |
-| `POST /api/auth/signup` | ✗ | Account creation + profile bootstrap |
-| `POST /api/auth/google` | ✗ | Google OAuth token exchange |
-| `GET /api/auth/user/:uid` | ✓ | Fetch user profile |
-| `GET /api/market/gainers-losers` | ✗ | Top market movers |
-| `GET /api/market/quotes` | ✗ | Real-time quotes |
-| `GET /api/market/candles` | ✗ | Historical OHLC data |
-| `GET /api/watchlists` | ✓ | List user watchlists |
-| `POST /api/watchlists` | ✓ | Create watchlist |
-| `GET /api/watchlists/stream` | ✓ | SSE stream for watchlist updates |
-| `GET /api/notifications` | ✓ | List notifications (filterable) |
-| `GET /api/notifications/stream` | ✓ | SSE stream for real-time notifications |
-| `POST /api/notifications/:id/read` | ✓ | Mark notification as read |
-| `POST /api/dsfm/adf-test` | ✗ | Augmented Dickey-Fuller test |
-| `POST /api/dsfm/acf-pacf` | ✗ | Autocorrelation analysis |
-| `POST /api/dsfm/arima` | ✗ | ARIMA forecast |
-| `POST /api/dsfm/garch` | ✗ | GARCH volatility model |
-| `POST /api/dsfm/mpt` | ✗ | Modern Portfolio Theory optimization |
+The backend protects the downstream ML Service and upstream SmartAPI endpoints via rate limits:
+- **Global:** 100 requests / minute
+- **Auth:** 10 requests / 15 minutes
+- **DSFM Compute:** 20 requests / minute
 
-## Rate Limiting
+All routes are explicitly typed and validated using `express-validator`.
 
-| Scope | Limit |
-|---|---|
-| Global | 100 requests / minute |
-| Auth endpoints | 10 requests / 15 minutes |
-| DSFM compute | 20 requests / minute |
+## 🐳 Docker Deployment
 
-## Docker
-
-Multi-stage Dockerfile with two targets:
-
-1. **builder** — installs deps, compiles TypeScript via `tsconfig.docker.json`
-2. **runner** — production Alpine image with only production deps + compiled JS
+Features a highly optimized multi-stage build:
+1. **builder** — Installs deps, compiles TypeScript via `tsconfig.docker.json`.
+2. **runner** — Alpine image with only production dependencies and compiled JS.
 
 ```bash
-# Development (hot-reload via volume mount with nodemon legacy watch)
+# Development (hot-reload via volume mount)
 docker compose -f docker-compose.dev.yml up backend
 
 # Production
 docker compose up backend
 ```
-
-## Event System
-
-The backend emits domain events via `AppEventEmitter`:
-
-| Event | Trigger | Side Effect |
-|---|---|---|
-| `auth.login` | Successful login | "Welcome Back" notification (deduplicated per day) |
-| `auth.signup` | New account created | "Welcome to AngelFive" notification |
-| `watchlist.created` | Watchlist created | "Watchlist Created" notification |
-| `watchlist.symbol_added` | Symbol added to watchlist | "Symbol Added" notification |
-
-Events are consumed by `NotificationService` which writes to Firestore with deduplication and atomic unread count tracking.

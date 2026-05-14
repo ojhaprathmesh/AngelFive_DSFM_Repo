@@ -1,141 +1,93 @@
 # @angelfive/ml-service
 
-Python-based ML and statistical inference engine for the AngelFive DSFM platform. Provides ARIMA/GARCH forecasting, LSTM time-series prediction, FinBERT sentiment analysis, and portfolio optimization (MPT, Black-Litterman).
+Python-based Machine Learning and Statistical Inference Engine for the AngelFive DSFM platform. Purpose-built to offload heavy blocking computations from the Node.js backend. Provides ARIMA/GARCH forecasting, LSTM neural networks, FinBERT sentiment analysis, and quantitative portfolio optimization.
 
-## Tech Stack
+## 🚀 Tech Stack & Engineering
 
 | Layer | Technology |
 |---|---|
-| Framework | FastAPI + Pydantic |
-| Production Server | Gunicorn + Uvicorn workers |
+| Framework | FastAPI + Pydantic (Strict API Contracts) |
+| Production Server | Gunicorn + Uvicorn Workers |
 | Language | Python 3.11 |
-| Deep Learning | PyTorch (CPU) |
+| Deep Learning | PyTorch (CPU-Optimized) |
 | NLP | HuggingFace Transformers (FinBERT) |
-| Statistics | statsmodels, arch, scipy, numpy, pandas |
-| Model Format | safetensors (preferred) + torch fallback |
-| Package Manager | uv (for fast installs) |
+| Quantitative | `statsmodels`, `arch`, `scipy`, `pandas` |
+| Security | `safetensors` model weights |
+| Package Manager | `uv` (Ultra-fast Python dependency management) |
 
-## Prerequisites
+## 🏗️ Architectural Decisions
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- **Unblocking Node.js:** Time-series training and NLP inference take seconds to execute. This dedicated Python service prevents the main Express API Gateway from suffering event-loop blocks.
+- **FastAPI Pydantic Contracts:** Request validation ensures the backend never sends malformed matrix data to the statistical solvers.
+- **Safetensors Over Pickles:** Neural network weights (LSTM, FinBERT) are explicitly configured to load from `.safetensors` files, eliminating arbitrary code execution vulnerabilities common with standard `.pt`/`.pkl` files.
+- **Background Warmup:** HuggingFace FinBERT weights (~420 MB) are lazily loaded. A background thread warms up the model instantly upon service boot to eliminate cold-start latency for the first user.
 
-## Local Setup
+## 🚦 Local Setup
 
-### 1. Create virtual environment
-
+### 1. Create Virtual Environment
+Using the highly-performant `uv` package manager:
 ```bash
 cd ml-service
-python -m venv .venv
-
-# Linux/macOS
-source .venv/bin/activate
-
-# Windows
-.venv\Scripts\activate
+uv venv
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
 ```
 
-### 2. Install dependencies
-
+### 2. Install Dependencies
 ```bash
-# Install PyTorch CPU first
+# Install PyTorch CPU directly first to save space
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# Install remaining dependencies
+# Install service dependencies
 uv pip install -r requirements.txt
 ```
 
-### 3. Configure environment
-
+### 3. Start the Dev Server
 ```bash
-cp .env.example .env
+fastapi dev src/app.py
+# Runs on http://localhost:8000
 ```
 
-### 4. Start the dev server
-
-```bash
-python app.py
-```
-
-The service runs on `http://localhost:8000` by default.
-
-> **Note:** On first startup, FinBERT model weights (~420 MB) are downloaded from HuggingFace. A background warmup thread handles this automatically to reduce first-request latency.
-
-## Project Structure
+## 📂 Project Structure
 
 ```text
 ml-service/
-├── app.py                      # Entry point (runs FastAPI app with Uvicorn)
+├── app.py                      # Application Factory + Lifespan Mgmt
 ├── src/
-│   ├── __init__.py             # FastAPI app initialization and lifespan manager
-│   ├── config.py               # Environment configuration
+│   ├── config.py               # Env validation
 │   ├── routes/
-│   │   ├── dsfm_routes.py      # DSFM endpoints (ADF, ACF/PACF, ARIMA, GARCH, LSTM)
-│   │   ├── forecast_routes.py  # Forecast-specific endpoints
-│   │   ├── health_routes.py    # Health and readiness checks
-│   │   └── model_routes.py     # Model status/info endpoints
+│   │   ├── dsfm_routes.py      # Statistical Endpoints (ADF, ARIMA, GARCH)
+│   │   ├── forecast_routes.py  # LSTM prediction routes
+│   │   ├── health_routes.py    # Readiness probes for CI/CD Smoke tests
+│   │   └── model_routes.py     # Diagnostics for memory usage
 │   ├── services/
-│   │   ├── dsfm_service.py     # Core DSFM logic (statistical + optimization)
-│   │   ├── forecast_service.py # Forecast orchestration
-│   │   └── sentiment_service.py # FinBERT + lexical sentiment analysis
-│   ├── models/
-│   │   └── model_loader.py     # Singleton lazy model loaders (FinBERT, LSTM)
-│   └── utils/
-├── requirements.in             # Top-level dependency declarations
-├── requirements.txt            # Pinned/compiled dependency lockfile
-├── Dockerfile                  # Production image with uv + gunicorn
-└── .env.example                # Environment variable template
+│   │   ├── dsfm_service.py     # Math & stats implementation
+│   │   └── sentiment_service.py# NLP pipeline orchestration
+│   └── models/
+│       └── model_loader.py     # Singleton Thread-Safe Model Cache
+├── requirements.in             # Human-readable dependencies
+├── requirements.txt            # Compiled lockfile via `uv pip compile`
+└── Dockerfile                  # Production container configuration
 ```
 
-## API Endpoints
+## 🧠 Supported ML & Quant Models
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health` | GET | Basic health check |
-| `/health/ready` | GET | Readiness check (model status) |
-| `/api/dsfm/adf-test` | POST | Augmented Dickey-Fuller stationarity test |
-| `/api/dsfm/acf-pacf` | POST | Autocorrelation / partial autocorrelation |
-| `/api/dsfm/arima` | POST | ARIMA time-series forecast |
-| `/api/dsfm/garch` | POST | GARCH volatility modeling |
-| `/api/dsfm/lstm` | POST | LSTM neural network forecast |
-| `/api/dsfm/sentiment/finbert` | POST | FinBERT sentiment classification |
-| `/api/dsfm/sentiment/rule-based` | POST | Keyword/lexical sentiment classifier |
-| `/api/dsfm/mpt` | POST | Modern Portfolio Theory optimization (SLSQP) |
-| `/api/dsfm/black-litterman` | POST | Black-Litterman portfolio allocation |
-| `/api/model/status` | GET | Model load status and memory usage |
+- **ADF (Augmented Dickey-Fuller):** Tests market time-series for stationarity.
+- **ARIMA:** Autoregressive Integrated Moving Average forecasting.
+- **GARCH:** Volatility clustering and conditional variance modeling.
+- **LSTM:** Recurrent Neural Networks natively built in PyTorch for sequential price forecasting.
+- **FinBERT:** Pre-trained NLP transformer specifically fine-tuned on financial lexicon for text sentiment.
+- **Markowitz & Black-Litterman:** Efficient frontier solvers using SLSQP optimizers from `scipy`.
 
-## Model Loading
+## 🐳 Docker Deployment
 
-Models are loaded lazily on first request via singleton loaders with thread locks:
-
-- **FinBERT**: `ProsusAI/finbert` — downloaded from HuggingFace on first use, cached in `model_cache/`
-- **LSTM**: Custom PyTorch module loaded strictly from secure `safetensors` format.
-
-A background warmup thread pre-loads FinBERT at app startup to minimize cold-start latency.
-
-## Docker
-
-Single-stage Dockerfile with `uv` for fast dependency installation:
+Features a highly optimized production Dockerfile utilizing `uv` for sub-second dependency resolution.
 
 ```bash
 # Development (hot-reload via uvicorn --reload)
 docker compose -f docker-compose.dev.yml up ml-service
 
-# Production (gunicorn with uvicorn workers)
+# Production (gunicorn with multiple uvicorn workers)
 docker compose up ml-service
 ```
-
-The production image runs as a non-root `appuser` with a persistent model cache volume at `/app/model_cache`.
-
-## Dependency Management
-
-Dependencies are managed with a two-file pattern:
-
-- `requirements.in` — human-maintained top-level packages
-- `requirements.txt` — compiled/pinned lockfile generated by `uv pip compile`
-
-To update dependencies:
-
-```bash
-uv pip compile requirements.in -o requirements.txt
-```
+*Note: The production image runs as a non-root user (`appuser`) and securely mounts `/app/model_cache` to persist HuggingFace weights across container restarts.*
