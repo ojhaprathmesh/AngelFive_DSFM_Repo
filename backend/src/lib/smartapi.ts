@@ -175,6 +175,7 @@ export async function fetchSmartApiQuotes(
   if (!jwt) return [];
 
   return queueQuoteFetch(async () => {
+    const start = Date.now();
     try {
       const response = await fetch(
         "https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote/",
@@ -197,12 +198,26 @@ export async function fetchSmartApiQuotes(
         },
       );
 
-      if (!response.ok) return [];
+      const durationMs = Date.now() - start;
+
+      if (!response.ok) {
+        logger.warn(
+          { status: response.status, durationMs },
+          "[SmartAPI] Quote fetch HTTP error",
+        );
+        return [];
+      }
 
       const data: any = await response.json();
-      if (!data.status || !data.data?.fetched) return [];
+      if (!data.status || !data.data?.fetched) {
+        logger.warn(
+          { durationMs, message: data?.message },
+          "[SmartAPI] Quote fetch returned no data",
+        );
+        return [];
+      }
 
-      return data.data.fetched.map((q: any) => ({
+      const quotes = data.data.fetched.map((q: any) => ({
         symbol: q.tradingSymbol,
         price: q.ltp,
         change: q.netChange,
@@ -216,8 +231,17 @@ export async function fetchSmartApiQuotes(
         totBuyQuan: q.totBuyQuan,
         totSellQuan: q.totSellQuan,
       }));
+
+      logger.info(
+        { durationMs, count: quotes.length },
+        "[SmartAPI] Quote fetch OK",
+      );
+      return quotes;
     } catch (error) {
-      logger.error({ err: error }, "SmartAPI quote fetch failed:");
+      logger.error(
+        { err: error, durationMs: Date.now() - start },
+        "[SmartAPI] Quote fetch failed",
+      );
       return [];
     }
   });
@@ -249,6 +273,7 @@ export async function fetchSmartApiCandles(
   if (!jwt) return [];
 
   return queueCandleFetch(async () => {
+    const start = Date.now();
     try {
       const response = await fetch(
         "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData",
@@ -265,8 +290,6 @@ export async function fetchSmartApiCandles(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            // SmartAPI expects these exact field names (per Historical API docs):
-            // exchange, symboltoken, interval, fromdate, todate
             exchange,
             symboltoken: symbolToken,
             interval,
@@ -276,6 +299,8 @@ export async function fetchSmartApiCandles(
         },
       );
 
+      const durationMs = Date.now() - start;
+
       if (!response.ok) {
         const errText = await response.text().catch(() => "");
         logger.error(
@@ -283,8 +308,9 @@ export async function fetchSmartApiCandles(
             status: response.status,
             statusText: response.statusText,
             error: errText.slice(0, 500),
+            durationMs,
           },
-          "[SmartAPI] Candle fetch HTTP error:",
+          "[SmartAPI] Candle fetch HTTP error",
         );
         return [];
       }
@@ -298,15 +324,23 @@ export async function fetchSmartApiCandles(
               message: data?.message,
               errorCode: data?.errorCode,
             },
+            durationMs,
           },
-          "[SmartAPI] Candle fetch returned invalid payload:",
+          "[SmartAPI] Candle fetch returned invalid payload",
         );
         return [];
       }
 
+      logger.info(
+        { durationMs, count: data.data.length, exchange, symbolToken },
+        "[SmartAPI] Candle fetch OK",
+      );
       return data.data;
     } catch (error) {
-      logger.error({ err: error }, "SmartAPI candle fetch failed:");
+      logger.error(
+        { err: error, durationMs: Date.now() - start },
+        "[SmartAPI] Candle fetch failed",
+      );
       return [];
     }
   });

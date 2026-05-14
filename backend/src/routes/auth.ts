@@ -405,9 +405,8 @@ router.post(
         // Generate password reset link (throws auth/user-not-found if no account)
         const resetLink = await getAuth().generatePasswordResetLink(email);
 
-        // In a production environment, you would send this link via email
-        // For now, we'll just return success
-        logger.info(`Password reset link generated for ${email}: ${resetLink}`);
+        // Log the event without the link — the link is a secret equivalent to a password
+        logger.info({ email }, "[AUTH] Password reset link generated");
 
         return res.json({
           status: "success",

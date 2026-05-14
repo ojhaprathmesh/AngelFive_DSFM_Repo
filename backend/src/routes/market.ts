@@ -408,12 +408,23 @@ router.get("/quotes", async (req: Request, res: Response): Promise<void> => {
       .split(",")
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
-    const quotesAll: Quote[] = (await fetchQuotesForMarketPanels()).map(
-      (q) => ({
-        ...q,
-        symbol: q.symbol.toUpperCase(),
-      }),
+
+    // Cache the full quote panel (shared across callers), then filter client-side
+    const cacheKey = "market:quotes:panel";
+    const quotesAll: Quote[] = await swrCache.get(
+      cacheKey,
+      async () => {
+        const start = Date.now();
+        const raw = await fetchQuotesForMarketPanels();
+        logger.info(
+          { durationMs: Date.now() - start, count: raw.length },
+          "[NSE] Quote panel fetched",
+        );
+        return raw.map((q) => ({ ...q, symbol: q.symbol.toUpperCase() }));
+      },
+      TTL.LIVE_PRICE,
     );
+
     const filtered = quotesAll
       .filter((q) => wanted.includes(q.symbol))
       .map((q) => ({
@@ -424,6 +435,7 @@ router.get("/quotes", async (req: Request, res: Response): Promise<void> => {
       }));
     res.json({ quotes: filtered });
   } catch (e) {
+    logger.error({ err: e }, "[NSE] Quotes route error");
     res.status(500).json({ error: "failed_to_fetch_quotes" });
   }
 });
@@ -440,85 +452,96 @@ router.get(
         return;
       }
 
-      const cookie = await getNSECookie();
-      const url = `https://www.nseindia.com/api/quote-equity?symbol=${encodeURIComponent(symbol)}`;
-      const resp = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "application/json,text/plain,*/*",
-          Referer: `https://www.nseindia.com/get-quotes/equity?symbol=${encodeURIComponent(symbol)}`,
-          Cookie: cookie,
+      const cacheKey = `market:stock-overview:${symbol}`;
+      const data = await swrCache.get(
+        cacheKey,
+        async () => {
+          const start = Date.now();
+          const cookie = await getNSECookie();
+          const url = `https://www.nseindia.com/api/quote-equity?symbol=${encodeURIComponent(symbol)}`;
+          const resp = await fetch(url, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              Accept: "application/json,text/plain,*/*",
+              Referer: `https://www.nseindia.com/get-quotes/equity?symbol=${encodeURIComponent(symbol)}`,
+              Cookie: cookie,
+            },
+          });
+
+          const durationMs = Date.now() - start;
+
+          if (!resp.ok) {
+            logger.warn(
+              { status: resp.status, symbol, durationMs },
+              "[NSE] Stock overview fetch failed",
+            );
+            // Throw so the cache does NOT store a failed result
+            throw new Error(`NSE returned ${resp.status} for ${symbol}`);
+          }
+
+          const json: any = await resp.json();
+          const info = json?.info || {};
+          const priceInfo = json?.priceInfo || {};
+          const securityInfo = json?.securityInfo || {};
+          const metadata = json?.metadata || {};
+          const industryInfo = json?.industryInfo || {};
+
+          const intraDay =
+            priceInfo?.intraDayHighLow || priceInfo?.dayHighLow || {};
+          const weekHighLow = priceInfo?.weekHighLow || {};
+          const priceBand = securityInfo?.priceBand || {};
+
+          logger.info({ symbol, durationMs }, "[NSE] Stock overview fetch OK");
+
+          return {
+            symbol: info?.symbol || symbol,
+            companyName: info?.companyName || info?.longName || symbol,
+            industry:
+              info?.industry ||
+              industryInfo?.industry ||
+              metadata?.industry ||
+              null,
+            lastPrice: priceInfo?.lastPrice ?? null,
+            change: priceInfo?.change ?? null,
+            pChange: priceInfo?.pChange ?? null,
+            open: priceInfo?.open ?? null,
+            dayHigh: intraDay?.max ?? priceInfo?.dayHigh ?? null,
+            dayLow: intraDay?.min ?? priceInfo?.dayLow ?? null,
+            previousClose: priceInfo?.prevClose ?? priceInfo?.close ?? null,
+            averagePrice: priceInfo?.vwap ?? null,
+            totalTradedVolume: priceInfo?.totalTradedVolume ?? null,
+            totalTradedValue: priceInfo?.totalTradedValue ?? null,
+            bid: priceInfo?.bid ?? null,
+            ask: priceInfo?.ask ?? null,
+            upperCircuit: priceInfo?.upperCP ?? priceBand?.upper ?? null,
+            lowerCircuit: priceInfo?.lowerCP ?? priceBand?.lower ?? null,
+            weekHigh: weekHighLow?.max ?? null,
+            weekHighDate: weekHighLow?.maxDate ?? null,
+            weekLow: weekHighLow?.min ?? null,
+            weekLowDate: weekHighLow?.minDate ?? null,
+            faceValue: securityInfo?.faceValue ?? null,
+            isin: securityInfo?.isin ?? null,
+            marketCap:
+              securityInfo?.issuedSize && priceInfo?.lastPrice
+                ? Number(securityInfo.issuedSize) * Number(priceInfo.lastPrice)
+                : (securityInfo?.marketCap ?? null),
+            pe: metadata?.pdSymbolPe ?? metadata?.pe ?? null,
+            pb: metadata?.pb ?? null,
+            eps: metadata?.eps ?? null,
+            dividendYield: metadata?.dividendYield ?? null,
+            roe: metadata?.roe ?? null,
+            beta: metadata?.beta ?? null,
+            sectorPe: metadata?.pdSectorPe ?? null,
+            lastUpdateTime: priceInfo?.lastUpdateTime ?? null,
+          };
         },
-      });
-
-      if (!resp.ok) {
-        logger.error(
-          `[stock-overview] NSE response ${resp.status} for ${symbol}`,
-        );
-        res
-          .status(resp.status)
-          .json({ error: "failed_to_fetch_stock_overview" });
-        return;
-      }
-
-      const json: any = await resp.json();
-      const info = json?.info || {};
-      const priceInfo = json?.priceInfo || {};
-      const securityInfo = json?.securityInfo || {};
-      const metadata = json?.metadata || {};
-      const industryInfo = json?.industryInfo || {};
-
-      const intraDay =
-        priceInfo?.intraDayHighLow || priceInfo?.dayHighLow || {};
-      const weekHighLow = priceInfo?.weekHighLow || {};
-      const priceBand = securityInfo?.priceBand || {};
-
-      const data = {
-        symbol: info?.symbol || symbol,
-        companyName: info?.companyName || info?.longName || symbol,
-        industry:
-          info?.industry ||
-          industryInfo?.industry ||
-          metadata?.industry ||
-          null,
-        lastPrice: priceInfo?.lastPrice ?? null,
-        change: priceInfo?.change ?? null,
-        pChange: priceInfo?.pChange ?? null,
-        open: priceInfo?.open ?? null,
-        dayHigh: intraDay?.max ?? priceInfo?.dayHigh ?? null,
-        dayLow: intraDay?.min ?? priceInfo?.dayLow ?? null,
-        previousClose: priceInfo?.prevClose ?? priceInfo?.close ?? null,
-        averagePrice: priceInfo?.vwap ?? null,
-        totalTradedVolume: priceInfo?.totalTradedVolume ?? null,
-        totalTradedValue: priceInfo?.totalTradedValue ?? null,
-        bid: priceInfo?.bid ?? null,
-        ask: priceInfo?.ask ?? null,
-        upperCircuit: priceInfo?.upperCP ?? priceBand?.upper ?? null,
-        lowerCircuit: priceInfo?.lowerCP ?? priceBand?.lower ?? null,
-        weekHigh: weekHighLow?.max ?? null,
-        weekHighDate: weekHighLow?.maxDate ?? null,
-        weekLow: weekHighLow?.min ?? null,
-        weekLowDate: weekHighLow?.minDate ?? null,
-        faceValue: securityInfo?.faceValue ?? null,
-        isin: securityInfo?.isin ?? null,
-        marketCap:
-          securityInfo?.issuedSize && priceInfo?.lastPrice
-            ? Number(securityInfo.issuedSize) * Number(priceInfo.lastPrice)
-            : (securityInfo?.marketCap ?? null),
-        pe: metadata?.pdSymbolPe ?? metadata?.pe ?? null,
-        pb: metadata?.pb ?? null,
-        eps: metadata?.eps ?? null,
-        dividendYield: metadata?.dividendYield ?? null,
-        roe: metadata?.roe ?? null,
-        beta: metadata?.beta ?? null,
-        sectorPe: metadata?.pdSectorPe ?? null,
-        lastUpdateTime: priceInfo?.lastUpdateTime ?? null,
-      };
+        TTL.LIVE_PRICE,
+      );
 
       res.json({ data });
     } catch (e) {
-      logger.error({ err: e }, "[stock-overview] Error:");
+      logger.error({ err: e }, "[NSE] Stock overview route error");
       res.status(500).json({ error: "failed_to_fetch_stock_overview" });
     }
   },
@@ -704,7 +727,7 @@ router.post(
         res.json({
           quotes: [],
           source: null,
-          error: "SmartAPI credentials not configured",
+          error: "No tokens resolved",
         });
         return;
       }
@@ -718,10 +741,22 @@ router.post(
         return;
       }
 
-      const quotes = await fetchSmartApiQuotes(exchangeTokens);
+      // Build a stable cache key from the sorted exchange tokens
+      const tokenSig = Object.keys(exchangeTokens)
+        .sort()
+        .map((ex) => `${ex}:${[...exchangeTokens[ex]].sort().join(",")}`)
+        .join("|");
+      const cacheKey = `market:smartapi-quote:${tokenSig}`;
+
+      const quotes = await swrCache.get(
+        cacheKey,
+        () => fetchSmartApiQuotes(exchangeTokens),
+        TTL.LIVE_PRICE,
+      );
+
       res.json({ quotes, source: "smartapi" });
     } catch (e) {
-      logger.error({ err: e }, "[smartapi/quote] Error:");
+      logger.error({ err: e }, "[SmartAPI] Quote route error");
       res.status(500).json({ error: "failed_to_fetch_quote" });
     }
   },
@@ -775,7 +810,7 @@ router.get(
 
       res.json({ candles });
     } catch (e) {
-      logger.error({ err: e }, "[smartapi/candles] Error:");
+      logger.error({ err: e }, "[SmartAPI] Candles route error");
       res.status(500).json({ error: "failed_to_fetch_candles" });
     }
   },

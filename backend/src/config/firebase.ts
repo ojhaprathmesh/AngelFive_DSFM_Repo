@@ -40,10 +40,10 @@ try {
       projectId: config.projectId,
     });
 
-    logger.info("✅ Firebase Admin SDK initialized\n");
+    logger.info("[Firebase] Admin SDK initialized");
   } else {
     firebaseApp = getApps()[0];
-    logger.info("✅ Firebase Admin SDK already initialized");
+    logger.info("[Firebase] Admin SDK already initialized");
   }
 
   firebaseAuth = getAuth(firebaseApp);
@@ -53,7 +53,7 @@ try {
     ignoreUndefinedProperties: true,
   });
 } catch (error) {
-  logger.error({ err: error }, "❌ Firebase initialization failed:");
+  logger.error({ err: error }, "[Firebase] Initialization failed:");
   throw error;
 }
 
@@ -65,7 +65,7 @@ export const checkFirebaseConnection = async (): Promise<boolean> => {
     await firebaseFirestore.collection("_health_check").limit(1).get();
     return true;
   } catch (error) {
-    logger.error({ err: error }, "Firebase connection check failed:");
+    logger.error({ err: error }, "[Firebase] Connection check failed:");
     return false;
   }
 };
