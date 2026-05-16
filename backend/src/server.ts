@@ -10,6 +10,7 @@ import { ENV } from "./config/env";
 import { logger } from "./lib/logger";
 import { getRedisStatus } from "./lib/redis";
 import { requestLogger } from "./middleware/logger";
+import { computeProfiler } from "./middleware/profiler";
 import authRouter from "./routes/auth";
 import dsfmRouter from "./routes/dsfm";
 import marketRouter from "./routes/market";
@@ -121,8 +122,8 @@ const dsfmLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter, authRouter);
-app.use("/api/dsfm", dsfmLimiter, dsfmRouter);
-app.use("/api/market", marketRouter);
+app.use("/api/dsfm", dsfmLimiter, computeProfiler, dsfmRouter);
+app.use("/api/market", computeProfiler, marketRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/watchlists", watchlistRouter);
 

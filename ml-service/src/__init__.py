@@ -11,6 +11,7 @@ from src.routes.forecast_routes import router as forecast_router
 from src.routes.health_routes import router as health_router
 from src.routes.model_routes import router as models_router
 from src.services.sentiment_service import warmup_finbert_model
+from src.middleware.profiler import ComputeProfilerMiddleware
 
 
 logging.basicConfig(
@@ -53,6 +54,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    app.add_middleware(ComputeProfilerMiddleware)
 
     app.include_router(health_router)
     app.include_router(forecast_router)
