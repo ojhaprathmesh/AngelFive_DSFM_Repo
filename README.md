@@ -70,47 +70,44 @@ AngelFive follows a strict **3-tier microservices architecture**.
 ### High-Level System Flow
 
 ```mermaid
-graph TD
-    subgraph "Frontend (Next.js 15)"
-        UI[Modular UI Components]
-        State[React Hooks / Context]
-        Viz[Lightweight Charts]
-        
-        State -->|Data Bindings| UI
-        State -->|Render State| Viz
+---
+config:
+    layout: elk
+---
+flowchart TB
+    subgraph subGraph0["Frontend (Next.js 16)"]
+        UI["Modular UI Components"]
+        State["React Hooks / Context"]
+        Viz["Lightweight Charts"]
     end
-
-    subgraph "Backend API Gateway (Express.js)"
-        Router[Router & Middleware]
-        Redis[Redis Cache Layer]
-        MarketSvc[Market & Watchlist Services]
-        
-        Router --> MarketSvc
-        MarketSvc <-->|Cache Check| Redis
+    subgraph subGraph1["Backend API Gateway (Express.js)"]
+        Router["Router & Middleware"]
+        Redis["Redis Cache Layer"]
+        MarketSvc["Market & Watchlist Services"]
     end
-
-    subgraph "ML Service (FastAPI/Python)"
-        ML_API[ML API Layer]
-        Optim[Portfolio Optimizers]
-        TS[ARIMA / GARCH / LSTM]
-        NLP[FinBERT Sentiment]
-        
-        ML_API --> Optim & TS & NLP
+    subgraph subGraph2["ML Service (FastAPI/Python)"]
+        ML_API["ML API Layer"]
+        Optim["Portfolio Optimizers"]
+        TS["ARIMA / GARCH / LSTM"]
+        NLP["FinBERT Sentiment"]
     end
-
-    subgraph "External Providers"
-        A1[AngelOne SmartAPI]
-        YF[Yahoo Finance]
-        FB[Firebase Auth/Firestore]
+    subgraph subGraph3["External Providers"]
+        A1["AngelOne SmartAPI"]
+        YF["Yahoo Finance"]
+        FB["Firebase Auth/Firestore"]
     end
-
-    UI <-->|REST / SSE| Router
-    Router <-->|Heavy Compute| ML_API
-    Router <-->|Market Data| A1 & YF
-    Router <-->|Identity| FB
+    State -- Data Bindings --> UI
+    State -- Render State --> Viz
+    Router --> MarketSvc
+    MarketSvc <-- Cache Check --> Redis
+    ML_API --> Optim & TS & NLP
+    UI <-- REST / SSE --> Router
+    Router <-- Heavy Compute --> ML_API
+    Router <-- Market Data --> A1 & YF
+    Router <-- Identity --> FB
 ```
 
-### 1. Frontend (Next.js 15 + React 19)
+### 1. Frontend (Next.js 16 + React 19)
 - Operates on a highly componentized, feature-folder pattern (e.g., `components/dsfm/returns-analysis/`).
 - Employs purely presentational UI elements wrapped by orchestrator components mapping custom state hooks.
 - Implements Server-Sent Events (SSE) for zero-latency market and notification streaming.
