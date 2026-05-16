@@ -8,11 +8,14 @@ import helmet from "helmet";
 
 import { ENV } from "./config/env";
 import { logger } from "./lib/logger";
+import { initQueues } from "./lib/queue";
 import { getRedisStatus } from "./lib/redis";
+import { shutdownWorkers } from "./lib/worker";
 import { requestLogger } from "./middleware/logger";
 import { computeProfiler } from "./middleware/profiler";
 import authRouter from "./routes/auth";
 import dsfmRouter from "./routes/dsfm";
+import jobsRouter from "./routes/jobs";
 import marketRouter from "./routes/market";
 import notificationsRouter from "./routes/notifications";
 import watchlistRouter from "./routes/watchlists";
@@ -126,6 +129,7 @@ app.use("/api/dsfm", dsfmLimiter, computeProfiler, dsfmRouter);
 app.use("/api/market", computeProfiler, marketRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/watchlists", watchlistRouter);
+app.use("/api/jobs", jobsRouter);
 
 /* -------------------------------------------------------------------------- */
 /*                             BASIC & HEALTH ROUTES                          */
@@ -216,6 +220,21 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 /*                                START SERVER                                */
 /* -------------------------------------------------------------------------- */
 
+initQueues();
+
 app.listen(PORT, () => {
   logger.info({ port: PORT, env: ENV.NODE_ENV }, "🚀 Server running");
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received, shutting down gracefully...");
+  await shutdownWorkers();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received, shutting down gracefully...");
+  await shutdownWorkers();
+  process.exit(0);
 });

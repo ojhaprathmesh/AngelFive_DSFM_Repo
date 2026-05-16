@@ -24,6 +24,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "bullmq": "^5.76.8",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
