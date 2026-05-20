@@ -15,6 +15,7 @@ allowBuilds:
 onlyBuiltDependencies:
   - '@firebase/util'
   - esbuild
+  - msgpackr-extract
   - protobufjs
   - sharp
   - unrs-resolver

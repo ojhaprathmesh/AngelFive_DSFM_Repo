@@ -18,8 +18,12 @@ certifi==2026.4.22
     #   httpcore
     #   httpx
     #   requests
+cffi==2.0.0
+    # via clarabel
 charset-normalizer==3.4.7
     # via requests
+clarabel==0.11.1
+    # via cvxpy
 click==8.3.3
     # via
     #   typer
@@ -29,6 +33,10 @@ colorama==0.4.6
     #   click
     #   tqdm
     #   uvicorn
+cvxpy==1.8.2
+    # via
+    #   -r requirements.in
+    #   pyportfolioopt
 fastapi==0.136.1
     # via -r requirements.in
 filelock==3.29.0
@@ -45,6 +53,8 @@ h11==0.16.0
     #   uvicorn
 hf-xet==1.5.0
     # via huggingface-hub
+highspy==1.14.0
+    # via cvxpy
 httpcore==1.0.9
     # via httpx
 httptools==0.7.1
@@ -62,7 +72,13 @@ idna==3.15
     #   httpx
     #   requests
 jinja2==3.1.6
-    # via torch
+    # via
+    #   osqp
+    #   torch
+joblib==1.5.3
+    # via
+    #   osqp
+    #   scikit-learn
 markdown-it-py==4.2.0
     # via rich
 markupsafe==3.0.3
@@ -77,11 +93,20 @@ numpy==2.4.4
     # via
     #   -r requirements.in
     #   arch
+    #   clarabel
+    #   cvxpy
+    #   highspy
+    #   osqp
     #   pandas
     #   patsy
+    #   pyportfolioopt
+    #   scikit-learn
     #   scipy
+    #   scs
     #   statsmodels
     #   transformers
+osqp==1.1.1
+    # via cvxpy
 packaging==26.2
     # via
     #   arch
@@ -92,17 +117,22 @@ pandas==3.0.3
     # via
     #   -r requirements.in
     #   arch
+    #   pyportfolioopt
     #   statsmodels
 patsy==1.0.2
     # via statsmodels
 psutil==7.2.2
     # via -r requirements.in
+pycparser==3.0
+    # via cffi
 pydantic==2.13.4
     # via fastapi
 pydantic-core==2.46.4
     # via pydantic
 pygments==2.20.0
     # via rich
+pyportfolioopt==1.6.0
+    # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pandas
 python-dotenv==1.2.2
@@ -122,13 +152,27 @@ safetensors==0.7.0
     # via
     #   -r requirements.in
     #   transformers
+scikit-base==0.13.2
+    # via pyportfolioopt
+scikit-learn==1.8.0
+    # via pyportfolioopt
 scipy==1.17.1
     # via
     #   -r requirements.in
     #   arch
+    #   clarabel
+    #   cvxpy
+    #   osqp
+    #   pyportfolioopt
+    #   scikit-learn
+    #   scs
     #   statsmodels
+scs==3.2.11
+    # via cvxpy
 setuptools==81.0.0
-    # via torch
+    # via
+    #   osqp
+    #   torch
 shellingham==1.5.4
     # via typer
 six==1.17.0
@@ -143,6 +187,8 @@ statsmodels==0.14.6
     #   arch
 sympy==1.14.0
     # via torch
+threadpoolctl==3.6.0
+    # via scikit-learn
 tokenizers==0.22.2
     # via transformers
 torch==2.12.0

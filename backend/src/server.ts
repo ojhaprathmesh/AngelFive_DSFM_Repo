@@ -107,10 +107,10 @@ const authLimiter = rateLimit({
   },
 });
 
-// Moderate rate limiter for Compute-heavy DSFM routes (20 requests per minute)
+// Moderate rate limiter for Compute-heavy DSFM routes (100 requests per minute)
 const dsfmLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

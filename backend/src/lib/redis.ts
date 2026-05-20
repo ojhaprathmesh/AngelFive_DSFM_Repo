@@ -72,7 +72,7 @@ function createClient(): Redis {
     },
 
     // Per-command timeout (ms) — prevents Redis ops from blocking request lifecycle
-    commandTimeout: 3_000,
+    // commandTimeout: 3_000,
 
     // Keep connection alive
     keepAlive: 10_000,
@@ -86,7 +86,7 @@ function createClient(): Redis {
 
     // Disable verbose ioredis debug output
     enableReadyCheck: true,
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: null,
   });
 
   // ── Event handlers ─────────────────────────────────────────────────────────

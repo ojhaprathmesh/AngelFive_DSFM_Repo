@@ -1,4 +1,5 @@
-allowBuilds:
-  '@firebase/util': true
-  esbuild: true
-  protobufjs: true
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - esbuild
+  - msgpackr-extract
+  - protobufjs

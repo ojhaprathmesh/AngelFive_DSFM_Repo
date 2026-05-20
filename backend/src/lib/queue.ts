@@ -74,7 +74,7 @@ export function getQueueEvents(name: QueueName): QueueEvents | null {
   const connection = getRedisClient();
   if (!connection) return null;
 
-  const events = new QueueEvents(name, { connection });
+  const events = new QueueEvents(name, { connection: connection.duplicate() });
   queueEvents.set(name, events);
 
   events.on("completed", ({ jobId }) => {

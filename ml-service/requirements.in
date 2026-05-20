@@ -9,6 +9,8 @@ pandas
 scipy
 statsmodels
 arch
+PyPortfolioOpt
+cvxpy
 
 # ML / NLP
 torch

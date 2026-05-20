@@ -24,7 +24,7 @@ export function createWorker(
   if (!connection) return null;
 
   const worker = new Worker(queueName, processor, {
-    connection,
+    connection: connection.duplicate(),
     concurrency,
   });
 

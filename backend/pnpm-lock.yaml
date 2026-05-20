@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - esbuild
+  - msgpackr-extract
+  - protobufjs
+
 importers:
 
   .:
