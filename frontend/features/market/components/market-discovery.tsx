@@ -504,6 +504,7 @@ export default function MarketDiscovery() {
                   setPfCustom(e.target.value);
                   if (e.target.value) setPfCeiling(Number(e.target.value));
                 }}
+                aria-label="Custom maximum price"
                 className="w-20 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-blue-700 dark:bg-gray-800 dark:text-gray-300"
               />
             </div>
@@ -541,7 +542,7 @@ export default function MarketDiscovery() {
                 className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="text-sm font-semibold">{s.symbol}</div>
-                <div className="mb-1 text-xs text-gray-400">LTP</div>
+                <div className="mb-1 text-xs text-gray-500">LTP</div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm">₹{s.price.toFixed(2)}</span>
                   <PriceBadge value={s.changePercent} />

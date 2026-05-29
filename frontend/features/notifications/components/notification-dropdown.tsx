@@ -80,6 +80,7 @@ export function NotificationDropdown() {
           variant="ghost"
           size="sm"
           className="touch-target group relative"
+          aria-label="Notifications"
         >
           <Bell className="group-hover:text-primary h-5 w-5 transition-colors" />
           {stats.unreadCount > 0 && (
@@ -224,6 +225,7 @@ export function NotificationDropdown() {
                         size="icon"
                         className="h-6 w-6 text-gray-400 hover:text-green-500"
                         onClick={() => markAsRead(n.id)}
+                        aria-label="Mark notification as read"
                       >
                         <Check className="h-3 w-3" />
                       </Button>
@@ -233,6 +235,7 @@ export function NotificationDropdown() {
                       size="icon"
                       className="h-6 w-6 text-gray-400 hover:text-red-500"
                       onClick={() => archiveNotification(n.id)}
+                      aria-label="Archive notification"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>

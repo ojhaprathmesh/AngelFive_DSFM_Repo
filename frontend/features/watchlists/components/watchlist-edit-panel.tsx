@@ -42,6 +42,7 @@ export function WatchlistEditPanel({
             variant="ghost"
             size="icon-sm"
             onClick={() => setEditPanelId(null)}
+            aria-label="Back to watchlists"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -73,6 +74,7 @@ export function WatchlistEditPanel({
                 size="icon-sm"
                 onClick={savePanelRename}
                 disabled={panelSaving}
+                aria-label="Save rename"
               >
                 <Check className="h-4 w-4" />
               </Button>
@@ -83,6 +85,7 @@ export function WatchlistEditPanel({
                   setPanelEditing(false);
                   setPanelEditValue("");
                 }}
+                aria-label="Cancel rename"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -205,6 +208,7 @@ export function WatchlistEditPanel({
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    aria-label={`Remove ${s.symbol} from watchlist`}
                     onClick={async () => {
                       if (!uid || !editPanelId) return;
                       try {

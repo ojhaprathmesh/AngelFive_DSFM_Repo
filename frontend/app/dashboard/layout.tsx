@@ -96,6 +96,7 @@ export default function DashboardLayout({
           : "min-h-screen bg-gray-50 dark:bg-gray-900"
       }
     >
+      <h1 className="sr-only">AngelFive Dashboard</h1>
       <DashboardNavbar user={navbarUser} />
       <main
         className={

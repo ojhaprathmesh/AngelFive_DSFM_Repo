@@ -35,7 +35,12 @@ export function CreateWatchlistModal({
       >
         <div className="flex items-center justify-between border-b p-3">
           <h2 className="text-sm font-semibold">Create Watchlist</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close modal"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -103,7 +108,12 @@ export function AddStockModal({
       >
         <div className="flex items-center justify-between border-b p-3">
           <h2 className="text-sm font-semibold">Add Stock</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close modal"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>

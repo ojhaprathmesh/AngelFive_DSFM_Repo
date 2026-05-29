@@ -731,6 +731,7 @@ export function WatchlistChart({
           className="h-8 w-8 p-0"
           onClick={() => setToolMode("pointer")}
           title="Pointer (Default Cursor)"
+          aria-label="Select pointer tool"
         >
           <MousePointer2 className="h-4 w-4" />
         </Button>
@@ -742,6 +743,7 @@ export function WatchlistChart({
           className="h-8 w-8 p-0"
           onClick={() => setToolMode("cross")}
           title="Crosshair (Cross)"
+          aria-label="Select crosshair tool"
         >
           <Move className="h-4 w-4" />
         </Button>
@@ -753,6 +755,7 @@ export function WatchlistChart({
           className="h-8 w-8 p-0"
           onClick={() => setToolMode("dot")}
           title="Dot"
+          aria-label="Select dot tool"
         >
           <Circle className="h-4 w-4" />
         </Button>
@@ -816,6 +819,9 @@ export function WatchlistChart({
           <div
             ref={chartContainerRef}
             className="h-full w-full"
+            aria-label={`Interactive financial chart for ${symbol}`}
+            role="region"
+            tabIndex={0}
             style={{
               width: "100%",
               height: "100%",
