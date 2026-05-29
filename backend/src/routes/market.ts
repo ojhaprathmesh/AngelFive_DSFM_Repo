@@ -96,39 +96,67 @@ async function fetchQuotesFromSmartApiBasket(): Promise<Quote[]> {
   }
 }
 
-/** NSE index rows, or SmartAPI basket when NSE is blocked (e.g. Render / Akamai 403). */
+/** NSE index rows, or SmartAPI when NSE is blocked / lacks prices. */
 async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
   const rows = await fetchNSEIndex("NIFTY 50");
-  if (rows && rows.length > 0) return rows.map(mapNSERowToQuote);
+  const hasPrices = rows && rows.length > 0 && rows[0].lastPrice !== undefined;
+
+  if (hasPrices) {
+    return rows.map(mapNSERowToQuote);
+  }
+
   logger.warn(
-    "[Market] NSE index empty or blocked — using SmartAPI basket for quotes",
+    "[Market] NSE index empty, blocked or lacks prices — using SmartAPI",
   );
+
+  if (rows && rows.length > 0) {
+    try {
+      const exchangeTokens: Record<string, string[]> = { NSE: [] };
+      const instruments = await loadInstrumentMaster();
+      for (const r of rows) {
+        const upper = String(r.symbol).toUpperCase();
+        const match = instruments.find((item: any) => {
+          const c1 = item.symbol?.toUpperCase();
+          const c2 = item.tradingsymbol?.toUpperCase();
+          return (
+            c1 === upper ||
+            c1 === `${upper}-EQ` ||
+            c2 === upper ||
+            c2 === `${upper}-EQ`
+          );
+        });
+        if (match?.token) {
+          exchangeTokens.NSE.push(String(match.token));
+        }
+      }
+      if (exchangeTokens.NSE.length > 0) {
+        const sq = await fetchSmartApiQuotes(exchangeTokens);
+        if (sq.length > 0) {
+          return sq.map(mapSmartQuoteToQuote);
+        }
+      }
+    } catch (e) {
+      logger.error(
+        { err: e },
+        "[Market] Failed to resolve SmartAPI quotes for NIFTY 50",
+      );
+    }
+  }
+
   return fetchQuotesFromSmartApiBasket();
 }
 
 async function fetchDiscoveryData() {
-  const rows = await fetchNSEIndex("NIFTY 50");
-  let quotes: Quote[] = [];
-  let source: "nse" | "smartapi" | "none" = "none";
+  const rawQuotes = await fetchQuotesForMarketPanels();
+  let source: "nse" | "smartapi" | "none" =
+    rawQuotes.length > 0 ? "smartapi" : "none";
 
-  if (rows && rows.length > 0) {
-    quotes = rows.map(mapNSERowToQuote);
-    source = "nse";
-  } else {
-    // Fallback: Fetch popular tokens from SmartAPI since NSE scraping often gets blocked
-    try {
-      const smartQuotes = await fetchSmartApiQuotes(SMARTAPI_MARKET_BASKET);
-      source = smartQuotes.length > 0 ? "smartapi" : "none";
-      quotes = smartQuotes.map((q) => ({
-        ...mapSmartQuoteToQuote(q),
-        regularMarketVolume: q.volume || Math.floor(Math.random() * 10_000_000), // Mock volume if missing
-      }));
-    } catch (e) {
-      logger.error({ err: e }, "[Discovery] SmartAPI fallback failed");
-      source = "none";
-      quotes = [];
-    }
-  }
+  // Mock volume if missing
+  const quotes = rawQuotes.map((q) => ({
+    ...q,
+    regularMarketVolume:
+      q.regularMarketVolume || Math.floor(Math.random() * 10_000_000),
+  }));
 
   const mostBought = [...quotes]
     .sort((a, b) => (b.regularMarketVolume || 0) - (a.regularMarketVolume || 0))
