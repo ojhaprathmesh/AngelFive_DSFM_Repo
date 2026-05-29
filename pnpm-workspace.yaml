@@ -11,3 +11,9 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+
+overrides:
+  uuid: "^9.0.1"
+  postcss: "^8.5.10"
+  "@tootallnate/once": "^3.0.1"
+  hasown: ">=2.0.2"
