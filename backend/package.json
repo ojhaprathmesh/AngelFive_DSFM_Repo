@@ -12,6 +12,7 @@
     "api"
   ],
   "main": "dist/server.js",
+  "packageManager": "pnpm@11.5.0",
   "engines": {
     "node": ">=24.16.0"
   },

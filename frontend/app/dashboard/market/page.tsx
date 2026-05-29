@@ -1,6 +1,22 @@
+"use client";
+
+import dynamic from "next/dynamic";
+
 import MarketDiscovery from "@/features/market/components/market-discovery";
-import { TradingChart } from "@/features/market/components/trading-chart";
 import { MarketErrorBoundary } from "@/features/market/error-boundary";
+
+const TradingChart = dynamic(
+  () =>
+    import("@/features/market/components/trading-chart").then(
+      (mod) => mod.TradingChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-70 w-full animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+    ),
+  },
+);
 
 export default function MarketPage() {
   return (

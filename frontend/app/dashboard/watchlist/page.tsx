@@ -1,6 +1,7 @@
 "use client";
 
 import { GripVertical, Pencil, Plus, Settings, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,20 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { WatchlistChart } from "@/features/watchlists/components/watchlist-chart";
+
+const WatchlistChart = dynamic(
+  () =>
+    import("@/features/watchlists/components/watchlist-chart").then(
+      (mod) => mod.WatchlistChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full animate-pulse bg-gray-100 dark:bg-gray-800" />
+    ),
+  },
+);
+
 import { WatchlistEditPanel } from "@/features/watchlists/components/watchlist-edit-panel";
 import { WatchlistList } from "@/features/watchlists/components/watchlist-list";
 import {

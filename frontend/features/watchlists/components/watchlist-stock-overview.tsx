@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDownRight, ArrowUpRight, Star } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,7 @@ const clampPercentage = (value: number) => {
   return value;
 };
 
-export function StockOverviewPanel({
+export const StockOverviewPanel = React.memo(function StockOverviewPanel({
   symbol,
   exchange = "NSE",
 }: StockOverviewPanelProps) {
@@ -303,7 +303,7 @@ export function StockOverviewPanel({
       </div>
     </div>
   );
-}
+});
 
 interface MetricProps {
   label: string;

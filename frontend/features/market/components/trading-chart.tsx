@@ -32,7 +32,7 @@ type TimeFrame = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y" | "Max";
 type ChartType = "Area" | "Candles";
 type IndexType = "SENSEX" | "NIFTY" | "BANKNIFTY" | "INDIAVIX" | "FINNIFTY";
 
-export function TradingChart() {
+export const TradingChart = React.memo(function TradingChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area" | "Candlestick"> | null>(null);
@@ -832,4 +832,4 @@ export function TradingChart() {
       </div>
     </div>
   );
-}
+});

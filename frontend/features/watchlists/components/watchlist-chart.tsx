@@ -36,7 +36,7 @@ interface WatchlistChartProps {
   exchange?: string;
 }
 
-export function WatchlistChart({
+export const WatchlistChart = React.memo(function WatchlistChart({
   symbol,
   exchange = "NSE",
 }: WatchlistChartProps) {
@@ -833,4 +833,4 @@ export function WatchlistChart({
       </div>
     </div>
   );
-}
+});
