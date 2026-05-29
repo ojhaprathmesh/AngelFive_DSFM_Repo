@@ -40,6 +40,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 import { NotificationDropdown } from "@/features/notifications/components/notification-dropdown";
+import { NotificationErrorBoundary } from "@/features/notifications/error-boundary";
 import { marketDataService } from "@/lib/market-data";
 
 interface MarketData {
@@ -391,7 +392,9 @@ export function DashboardNavbar({ user }: DashboardNavbarProps) {
           </div>
 
           {/* Notifications */}
-          <NotificationDropdown />
+          <NotificationErrorBoundary>
+            <NotificationDropdown />
+          </NotificationErrorBoundary>
 
           {/* User Profile Dropdown */}
           <DropdownMenu>

@@ -17,6 +17,7 @@ import {
   AddStockModal,
   CreateWatchlistModal,
 } from "@/features/watchlists/components/WatchlistModals";
+import { WatchlistErrorBoundary } from "@/features/watchlists/error-boundary";
 import { useWatchlistData } from "@/features/watchlists/hooks/useWatchlistData";
 import { watchlistService } from "@/features/watchlists/services/watchlists";
 
@@ -427,11 +428,13 @@ export default function WatchlistPage() {
           <div className="min-h-0 flex-1 overflow-hidden">
             {mainTab === "Chart" ? (
               selectedSymbol ? (
-                <WatchlistChart
-                  key={`${selectedSymbol}-${selectedExchange}-${chartKey}`}
-                  symbol={selectedSymbol}
-                  exchange={selectedExchange}
-                />
+                <WatchlistErrorBoundary>
+                  <WatchlistChart
+                    key={`${selectedSymbol}-${selectedExchange}-${chartKey}`}
+                    symbol={selectedSymbol}
+                    exchange={selectedExchange}
+                  />
+                </WatchlistErrorBoundary>
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <p className="text-gray-500 dark:text-gray-400">
@@ -440,10 +443,12 @@ export default function WatchlistPage() {
                 </div>
               )
             ) : selectedSymbol ? (
-              <StockOverviewPanel
-                symbol={selectedSymbol}
-                exchange={selectedExchange}
-              />
+              <WatchlistErrorBoundary>
+                <StockOverviewPanel
+                  symbol={selectedSymbol}
+                  exchange={selectedExchange}
+                />
+              </WatchlistErrorBoundary>
             ) : (
               <div className="flex h-full items-center justify-center">
                 <p className="text-gray-500 dark:text-gray-400">

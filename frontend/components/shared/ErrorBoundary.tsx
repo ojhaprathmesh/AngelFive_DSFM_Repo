@@ -1,10 +1,13 @@
 "use client";
 
+import { AlertTriangle, RefreshCcw } from "lucide-react";
 import React from "react";
 
 interface Props {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  featureName?: string;
+  onRetry?: () => void;
 }
 
 interface State {
@@ -13,8 +16,8 @@ interface State {
 }
 
 /**
- * React class error boundary for analytics panels.
- * Prevents a single tab crash from taking down the entire DSFM dashboard.
+ * Generic React class error boundary.
+ * Prevents a single component crash from taking down the entire dashboard.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
@@ -27,41 +30,47 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    const feature = this.props.featureName || "Unknown Component";
     console.error(
-      "[ErrorBoundary] Analytics panel crashed:",
+      `[ErrorBoundary: ${feature}] crashed:`,
       error,
       info.componentStack,
     );
   }
 
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+    if (this.props.onRetry) {
+      this.props.onRetry();
+    }
+  };
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
+
+      const featureName = this.props.featureName
+        ? `${this.props.featureName} `
+        : "";
+
       return (
-        <div className="flex flex-col items-center justify-center space-y-2 rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          <svg
-            className="h-8 w-8 text-red-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-            />
-          </svg>
-          <p className="text-sm font-medium text-red-500">
-            This panel encountered an error.
-          </p>
-          <p className="text-xs">
-            {this.state.error?.message ?? "Unknown error"}
-          </p>
+        <div className="flex flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-red-200 bg-red-50/50 p-8 text-center dark:border-red-900/50 dark:bg-red-900/10">
+          <div className="rounded-full bg-red-100 p-3 dark:bg-red-900/30">
+            <AlertTriangle className="h-6 w-6 text-red-500 dark:text-red-400" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-red-800 dark:text-red-400">
+              {featureName}Unavailable
+            </h3>
+            <p className="max-w-[250px] text-xs text-red-600/80 dark:text-red-400/80">
+              {this.state.error?.message ?? "An unexpected error occurred."}
+            </p>
+          </div>
           <button
-            className="mt-2 text-xs text-blue-600 hover:underline"
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={this.handleRetry}
+            className="group mt-2 flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-red-950 dark:text-red-400 dark:hover:bg-red-900/50"
           >
+            <RefreshCcw className="h-3.5 w-3.5 transition-transform group-hover:rotate-180" />
             Try again
           </button>
         </div>
