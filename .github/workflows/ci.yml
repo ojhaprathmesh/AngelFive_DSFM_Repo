@@ -33,10 +33,11 @@ jobs:
           version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: backend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: .
       - run: pnpm lint
       - run: pnpm build
       - name: Redis Integration Validation
@@ -66,10 +67,11 @@ jobs:
           version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: .
       - run: pnpm lint
       - run: pnpm build
         env:
