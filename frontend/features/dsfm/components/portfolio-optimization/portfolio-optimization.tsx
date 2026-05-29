@@ -21,9 +21,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { usePortfolioOptimization } from "../../hooks/use-portfolio-optimization";
 import { NIFTY_50_STOCKS, SENSEX_STOCKS } from "./constants";
-import { EfficientFrontierChart } from "./EfficientFrontierChart";
-import { usePortfolioOptimization } from "./hooks/usePortfolioOptimization";
+import { EfficientFrontierChart } from "./efficient-frontier-chart";
 
 export function PortfolioOptimization() {
   const [selectedIndex, setSelectedIndex] = useState<string>("nifty50");

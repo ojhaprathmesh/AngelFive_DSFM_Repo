@@ -1,2 +1,2 @@
 // Public barrel export for the returns-analysis feature.
-export { ReturnsAnalysis } from "./ReturnsAnalysis";
+export { ReturnsAnalysis } from "./returns-analysis";

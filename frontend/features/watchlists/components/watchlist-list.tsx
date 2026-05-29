@@ -2,9 +2,9 @@ import { Filter, Plus, Search } from "lucide-react";
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { StockItem } from "@/lib/types/market";
+import type { StockItem } from "@/features/market/types";
 
-import { StockCard } from "./StockCard";
+import { StockCard } from "./stock-card";
 
 interface WatchlistListProps {
   searchQuery: string;

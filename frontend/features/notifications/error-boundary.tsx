@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import React from "react";
 
-import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 
 interface Props {
   children: React.ReactNode;

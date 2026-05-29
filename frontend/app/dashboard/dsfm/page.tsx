@@ -2,12 +2,12 @@
 
 import { BarChart3, Layers, Network, PieChart, TrendingUp } from "lucide-react";
 
-import { CorrelationAnalysis } from "@/components/dsfm/correlation-analysis";
-import { NetworkAnalysis } from "@/components/dsfm/network-analysis";
-import { PCAAnalysis } from "@/components/dsfm/pca-analysis";
-import { PortfolioOptimization } from "@/components/dsfm/portfolio-optimization";
-import { ReturnsAnalysis } from "@/components/dsfm/returns-analysis";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CorrelationAnalysis } from "@/features/dsfm/components/correlation-analysis";
+import { NetworkAnalysis } from "@/features/dsfm/components/network-analysis";
+import { PCAAnalysis } from "@/features/dsfm/components/pca-analysis";
+import { PortfolioOptimization } from "@/features/dsfm/components/portfolio-optimization";
+import { ReturnsAnalysis } from "@/features/dsfm/components/returns-analysis";
 import { DSFMErrorBoundary } from "@/features/dsfm/error-boundary";
 
 export default function DSFMPage() {

@@ -1,5 +1,5 @@
-import { TradingChart } from "@/components/trading-chart";
 import MarketDiscovery from "@/features/market/components/market-discovery";
+import { TradingChart } from "@/features/market/components/trading-chart";
 import { MarketErrorBoundary } from "@/features/market/error-boundary";
 
 export default function MarketPage() {

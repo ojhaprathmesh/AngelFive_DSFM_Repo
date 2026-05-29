@@ -32,15 +32,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { useADFTest } from "./hooks/useADFTest";
-import { useReturnsData } from "./hooks/useReturnsData";
-import { useSentimentAnalysis } from "./hooks/useSentimentAnalysis";
-import { useTimeSeriesModels } from "./hooks/useTimeSeriesModels";
-import { ChartsTab } from "./tabs/ChartsTab";
-import { LSTMTab } from "./tabs/LSTMTab";
-import { ModelsTab } from "./tabs/ModelsTab";
-import { SentimentTab } from "./tabs/SentimentTab";
-import { StationarityTab } from "./tabs/StationarityTab";
+import { useADFTest } from "../../hooks/use-adf-test";
+import { useReturnsData } from "../../hooks/use-returns-data";
+import { useSentimentAnalysis } from "../../hooks/use-sentiment-analysis";
+import { useTimeSeriesModels } from "../../hooks/use-time-series-models";
+import { ChartsTab } from "./tabs/charts-tab";
+import { LSTMTab } from "./tabs/lstm-tab";
+import { ModelsTab } from "./tabs/models-tab";
+import { SentimentTab } from "./tabs/sentiment-tab";
+import { StationarityTab } from "./tabs/stationarity-tab";
 
 const POPULAR_STOCKS = [
   "RELIANCE",

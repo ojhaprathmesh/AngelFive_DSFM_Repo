@@ -16,8 +16,8 @@ export type {
 } from "./types";
 
 // Hooks
-export { useADFTest } from "./hooks/useADFTest";
-export { usePortfolioOptimization } from "./hooks/usePortfolioOptimization";
-export { useReturnsData } from "./hooks/useReturnsData";
-export { useSentimentAnalysis } from "./hooks/useSentimentAnalysis";
-export { useTimeSeriesModels } from "./hooks/useTimeSeriesModels";
+export { useADFTest } from "./hooks/use-adf-test";
+export { usePortfolioOptimization } from "./hooks/use-portfolio-optimization";
+export { useReturnsData } from "./hooks/use-returns-data";
+export { useSentimentAnalysis } from "./hooks/use-sentiment-analysis";
+export { useTimeSeriesModels } from "./hooks/use-time-series-models";
