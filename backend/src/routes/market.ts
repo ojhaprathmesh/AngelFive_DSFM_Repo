@@ -75,6 +75,32 @@ const SMARTAPI_MARKET_BASKET: Record<string, string[]> = {
   ],
 };
 
+/** Extended basket specifically for pocket-friendly stocks (smaller / mid-cap names with lower LTPs). */
+const POCKET_FRIENDLY_BASKET: Record<string, string[]> = {
+  NSE: [
+    "14366", // IDEA         ~₹8
+    "11915", // YESBANK      ~₹20
+    "3351", // SUZLON       ~₹50
+    "910", // SAIL         ~₹100
+    "234", // BANKBARODA   ~₹220  (include, often <₹200)
+    "438", // CANBK        ~₹95
+    "1660", // J&KBANK      ~₹90
+    "3329", // PNB          ~₹95
+    "13751", // RECLTD       ~₹400 (skip – pricy)
+    "4668", // UNIONBANK    ~₹115
+    "7406", // IDFCFIRSTB   ~₹60
+    "11385", // RBLBANK      ~₹165
+    "10217", // MANAPPURAM   ~₹175
+    "236", // TATASTEEL    ~₹140
+    "4717", // NTPC         ~₹340 (pricy but include for completeness)
+    "526", // NHPC         ~₹85
+    "435", // IRFC         ~₹155
+    "25", // ADANIPOWER   ~₹500 (skip)
+    "317", // BHEL         ~₹210
+    "16675", // ZOMATO       ~₹200
+  ],
+};
+
 function mapSmartQuoteToQuote(q: SmartApiQuoteItem): Quote {
   return {
     symbol: q.symbol.replace("-EQ", ""),
@@ -116,6 +142,7 @@ async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
       for (const r of rows) {
         const upper = String(r.symbol).toUpperCase();
         const match = instruments.find((item: any) => {
+          if (item.exch_seg !== "NSE") return false;
           const c1 = item.symbol?.toUpperCase();
           const c2 = item.tradingsymbol?.toUpperCase();
           return (
@@ -147,8 +174,19 @@ async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
 }
 
 async function fetchDiscoveryData() {
-  const rawQuotes = await fetchQuotesForMarketPanels();
-  let source: "nse" | "smartapi" | "none" =
+  let rawQuotes = await fetchQuotesForMarketPanels();
+
+  // If the fetched quotes are all zero-priced (token resolution failed), fall back to basket
+  const hasNonZeroPrices = rawQuotes.some((q) => q.regularMarketPrice > 0);
+  if (!hasNonZeroPrices && rawQuotes.length > 0) {
+    logger.warn(
+      { count: rawQuotes.length },
+      "[Market] All discovery quotes have zero prices — falling back to SmartAPI basket",
+    );
+    rawQuotes = await fetchQuotesFromSmartApiBasket();
+  }
+
+  const source: "nse" | "smartapi" | "none" =
     rawQuotes.length > 0 ? "smartapi" : "none";
 
   // Mock volume if missing
@@ -167,18 +205,44 @@ async function fetchDiscoveryData() {
   const topLosers = [...quotes]
     .sort((a, b) => a.regularMarketChangePercent - b.regularMarketChangePercent)
     .slice(0, 8);
-  const under50 = quotes
-    .filter((q) => q.regularMarketPrice > 0 && q.regularMarketPrice <= 50)
-    .slice(0, 8);
-  const under100 = quotes
-    .filter((q) => q.regularMarketPrice > 0 && q.regularMarketPrice <= 100)
-    .slice(0, 8);
-  const under200 = quotes
-    .filter((q) => q.regularMarketPrice > 0 && q.regularMarketPrice <= 200)
-    .slice(0, 8);
+
+  // ── Pocket-friendly: use a wider universe that includes budget stocks ──────
+  // NIFTY 50 stocks are all expensive (₹300+), so we always merge in the
+  // pocket-friendly basket which contains affordable small/mid-cap names.
+  let pocketQuotes = [...quotes];
+  try {
+    const pfBasketQuotes = await fetchSmartApiQuotes(POCKET_FRIENDLY_BASKET);
+    if (pfBasketQuotes.length > 0) {
+      const existingSymbols = new Set(
+        rawQuotes.map((q) => q.symbol.replace("-EQ", "")),
+      );
+      for (const bq of pfBasketQuotes) {
+        const sym = bq.symbol.replace("-EQ", "");
+        if (!existingSymbols.has(sym) && bq.price > 0) {
+          pocketQuotes.push({
+            symbol: sym,
+            regularMarketPrice: bq.price,
+            regularMarketChange: bq.change,
+            regularMarketChangePercent: bq.changePercent,
+            regularMarketVolume: bq.volume ?? 0,
+          });
+          existingSymbols.add(sym);
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn(
+      { err: e },
+      "[Market] Pocket-friendly basket fetch failed, using main quotes only",
+    );
+  }
+
+  const allStocks = [...pocketQuotes]
+    .filter((q) => q.regularMarketPrice > 0)
+    .sort((a, b) => a.regularMarketPrice - b.regularMarketPrice);
 
   logger.info(
-    { source, quoteCount: quotes.length },
+    { source, quoteCount: quotes.length, pocketCount: pocketQuotes.length },
     "[Discovery] Fetched discovery quotes",
   );
 
@@ -190,7 +254,7 @@ async function fetchDiscoveryData() {
     mostBought,
     topGainers,
     topLosers,
-    pocketFriendly: { under50, under100, under200 },
+    allStocks,
   };
 }
 

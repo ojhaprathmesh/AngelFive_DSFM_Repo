@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ override: true });
 
 import cors from "cors";
 import express, { Express, NextFunction, Request, Response } from "express";

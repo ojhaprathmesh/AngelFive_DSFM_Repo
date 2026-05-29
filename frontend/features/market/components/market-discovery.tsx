@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import React, { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +26,7 @@ interface DiscoveryResponse {
   mostBought: QuoteLike[];
   topGainers: QuoteLike[];
   topLosers: QuoteLike[];
-  pocketFriendly: {
-    under50: QuoteLike[];
-    under100: QuoteLike[];
-    under200: QuoteLike[];
-  };
+  allStocks: QuoteLike[];
 }
 
 interface PerformersResponse {
@@ -50,16 +47,40 @@ function PriceBadge({ value }: { value: number }) {
   );
 }
 
+function SkeletonCard() {
+  return (
+    <div className="h-24 animate-pulse rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-2 h-4 w-1/2 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="mb-4 h-3 w-1/4 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-1/3 rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-5 w-16 rounded-full bg-gray-200 dark:bg-gray-700" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <div className="flex animate-pulse items-center justify-between py-3">
+      <div className="h-4 w-1/4 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-4 w-1/5 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-4 w-1/6 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-6 w-16 rounded-full bg-gray-200 dark:bg-gray-700" />
+    </div>
+  );
+}
+
 export default function MarketDiscovery() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mostBought, setMostBought] = useState<MarketData[]>([]);
   const [gainers, setGainers] = useState<MarketData[]>([]);
   const [losers, setLosers] = useState<MarketData[]>([]);
-  const [pf50, setPf50] = useState<MarketData[]>([]);
-  const [pf100, setPf100] = useState<MarketData[]>([]);
-  const [pf200, setPf200] = useState<MarketData[]>([]);
-  const [pfTab, setPfTab] = useState<"50" | "100" | "200">("50");
+  const [allStocks, setAllStocks] = useState<MarketData[]>([]);
+  const [pfCeiling, setPfCeiling] = useState<number>(200);
+  const [pfCustom, setPfCustom] = useState<string>("");
+  const [pfIsCustom, setPfIsCustom] = useState<boolean>(false);
 
   const [tf, setTf] = useState<"1W" | "1M" | "1Y" | "5Y">("1W");
   const [performers, setPerformers] = useState<PerformerItem[]>([]);
@@ -88,11 +109,17 @@ export default function MarketDiscovery() {
         setMostBought((lists.mostBought || []).map(map));
         const gs = (lists.topGainers || []).map(map);
         const ls = (lists.topLosers || []).map(map);
-        setGainers(gs);
-        setLosers(ls);
-        setPf50((lists.pocketFriendly?.under50 || []).map(map));
-        setPf100((lists.pocketFriendly?.under100 || []).map(map));
-        setPf200((lists.pocketFriendly?.under200 || []).map(map));
+        // Only update gainers/losers if the new data has actual prices (non-zero)
+        // This prevents a slower fetch with zero prices from clobbering good data
+        const hasGoodPrices = (arr: MarketData[]) =>
+          arr.length > 0 && arr[0].price > 0;
+        setGainers((prev) =>
+          hasGoodPrices(gs) || !hasGoodPrices(prev) ? gs : prev,
+        );
+        setLosers((prev) =>
+          hasGoodPrices(ls) || !hasGoodPrices(prev) ? ls : prev,
+        );
+        setAllStocks((lists.allStocks || []).map(map));
         setLoading(false);
       } catch {
         setError("Failed to load discovery data");
@@ -135,8 +162,20 @@ export default function MarketDiscovery() {
               changePercent: Number(q.regularMarketChangePercent || 0),
               lastUpdated: new Date().toISOString(),
             });
-            setGainers(jl.gainers.slice(0, 8).map(mapQ));
-            setLosers(jl.losers.slice(0, 8).map(mapQ));
+            const newGainers = jl.gainers!.slice(0, 8).map(mapQ);
+            const newLosers = jl.losers!.slice(0, 8).map(mapQ);
+            const hasGoodPrices = (arr: MarketData[]) =>
+              arr.length > 0 && arr[0].price > 0;
+            setGainers((prev) =>
+              hasGoodPrices(newGainers) || !hasGoodPrices(prev)
+                ? newGainers
+                : prev,
+            );
+            setLosers((prev) =>
+              hasGoodPrices(newLosers) || !hasGoodPrices(prev)
+                ? newLosers
+                : prev,
+            );
             return;
           }
 
@@ -152,7 +191,12 @@ export default function MarketDiscovery() {
               lastUpdated: new Date().toISOString(),
             });
             const arr = jl.items.map(mapItem);
-            setGainers(arr.slice(0, 8));
+
+            // Only use SmartAPI's sparse data (which lacks prices) if we don't already have rich data from discovery
+            setGainers((prev) =>
+              prev.length > 0 && prev[0].price > 0 ? prev : arr.slice(0, 8),
+            );
+
             // losers call:
             const resp2 = await fetch(`/api/market/gainers-losers`, {
               method: "POST",
@@ -171,16 +215,18 @@ export default function MarketDiscovery() {
                 }>;
               } = await resp2.json();
               if (jl2.source === "smartapi" && Array.isArray(jl2.items)) {
-                setLosers(
-                  jl2.items
-                    .map((x) => ({
-                      symbol: x.tradingSymbol,
-                      price: 0,
-                      change: 0,
-                      changePercent: -Math.abs(Number(x.percentChange || 0)), // ← negate for losers
-                      lastUpdated: new Date().toISOString(),
-                    }))
-                    .slice(0, 8),
+                const losersArr = jl2.items
+                  .map((x) => ({
+                    symbol: x.tradingSymbol,
+                    price: 0,
+                    change: 0,
+                    changePercent: -Math.abs(Number(x.percentChange || 0)), // ← negate for losers
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                  .slice(0, 8);
+
+                setLosers((prev) =>
+                  prev.length > 0 && prev[0].price > 0 ? prev : losersArr,
                 );
               }
             }
@@ -195,7 +241,6 @@ export default function MarketDiscovery() {
     const loadPerf = async () => {
       try {
         setLoadingPerformers(true);
-        setPerformers([]); // Clear previous data while loading
         console.log(`[Frontend] Loading performers for timeframe: ${tf}`);
         const resp = await fetch(`/api/market/performers?tf=${tf}`, {
           cache: "no-store",
@@ -231,12 +276,12 @@ export default function MarketDiscovery() {
         {title}
       </h3>
       {section && (
-        <a
+        <Link
           href={`/dashboard/market/view-all?section=${encodeURIComponent(section)}`}
-          className="text-xs text-blue-600"
+          className="text-xs text-blue-600 hover:underline"
         >
           VIEW ALL
-        </a>
+        </Link>
       )}
     </div>
   );
@@ -256,12 +301,14 @@ export default function MarketDiscovery() {
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
         {header("Most Bought Stocks", "most-bought")}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {!loading && mostBought.length === 0 && (
-            <div className="text-xs text-gray-500">
-              No data available right now.
-            </div>
+          {loading && mostBought.length === 0 && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </>
           )}
-          {(loading ? [] : mostBought).slice(0, 5).map((s, idx) => (
+          {mostBought.slice(0, 5).map((s, idx) => (
             <div
               key={idx}
               className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
@@ -278,19 +325,32 @@ export default function MarketDiscovery() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        {header("Top Movers and Sectorwise Movements", "top-movers")}
+        {header("Top Movers and Sectorwise Movements")}
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between">
               <Badge className="bg-green-100 text-green-800">Gainers</Badge>
+              <Link
+                href="/dashboard/market/view-all?section=top-movers&filter=gainers"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                VIEW ALL
+              </Link>
             </div>
             <div className="divide-y">
+              {loading && gainers.length === 0 && (
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </>
+              )}
               {!loading && gainers.length === 0 && (
-                <div className="text-xs text-gray-500">
+                <div className="py-2 text-xs text-gray-500">
                   No data available right now.
                 </div>
               )}
-              {(loading ? [] : gainers).slice(0, 5).map((g, i) => (
+              {gainers.slice(0, 5).map((g, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between py-2 text-sm"
@@ -312,16 +372,29 @@ export default function MarketDiscovery() {
             </div>
           </div>
           <div className="flex-1">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between">
               <Badge className="bg-red-100 text-red-800">Losers</Badge>
+              <Link
+                href="/dashboard/market/view-all?section=top-movers&filter=losers"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                VIEW ALL
+              </Link>
             </div>
             <div className="divide-y">
+              {loading && losers.length === 0 && (
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </>
+              )}
               {!loading && losers.length === 0 && (
-                <div className="text-xs text-gray-500">
+                <div className="py-2 text-xs text-gray-500">
                   No data available right now.
                 </div>
               )}
-              {(loading ? [] : losers).slice(0, 5).map((g, i) => (
+              {losers.slice(0, 5).map((g, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between py-2 text-sm"
@@ -359,17 +432,17 @@ export default function MarketDiscovery() {
           </Tabs>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {loadingPerformers && (
-            <div className="col-span-full py-4 text-center text-xs text-gray-500">
-              Loading performers for {tf}...
-            </div>
-          )}
-          {!loadingPerformers && performers.length === 0 && (
+          {loadingPerformers ? (
+            <>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </>
+          ) : performers.length === 0 ? (
             <div className="col-span-full py-4 text-center text-xs text-gray-500">
               No performers data available for {tf}
             </div>
-          )}
-          {!loadingPerformers &&
+          ) : (
             performers.map((p, i) => (
               <div
                 key={i}
@@ -381,34 +454,86 @@ export default function MarketDiscovery() {
                   <PriceBadge value={p.changePct} />
                 </div>
               </div>
-            ))}
+            ))
+          )}
         </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
         {header("Pocket Friendly Stocks", "pocket-friendly")}
-        <div className="mb-3 flex items-center gap-2">
+        {/* ── Filter row ── */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {([50, 100, 200, 500] as const).map((val) => (
+            <button
+              key={val}
+              onClick={() => {
+                setPfCeiling(val);
+                setPfIsCustom(false);
+                setPfCustom("");
+              }}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                !pfIsCustom && pfCeiling === val
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+              }`}
+            >
+              ₹{val}
+            </button>
+          ))}
           <button
-            className={`rounded px-2 py-1 text-xs ${pfTab === "50" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setPfTab("50")}
+            onClick={() => setPfIsCustom(true)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+              pfIsCustom
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+            }`}
           >
-            ≤50
+            Custom
           </button>
-          <button
-            className={`rounded px-2 py-1 text-xs ${pfTab === "100" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setPfTab("100")}
-          >
-            ≤100
-          </button>
-          <button
-            className={`rounded px-2 py-1 text-xs ${pfTab === "200" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setPfTab("200")}
-          >
-            ≤200
-          </button>
+          {pfIsCustom && (
+            <div className="ml-1 flex items-center gap-1.5">
+              <span className="text-xs text-gray-400">₹</span>
+              <input
+                autoFocus
+                type="number"
+                min={1}
+                max={100000}
+                placeholder="e.g. 750"
+                value={pfCustom}
+                onChange={(e) => {
+                  setPfCustom(e.target.value);
+                  if (e.target.value) setPfCeiling(Number(e.target.value));
+                }}
+                className="w-20 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-blue-700 dark:bg-gray-800 dark:text-gray-300"
+              />
+            </div>
+          )}
+          <span className="ml-auto text-xs text-gray-400">
+            {
+              allStocks.filter((s) => s.price > 0 && s.price <= pfCeiling)
+                .length
+            }{" "}
+            stocks
+          </span>
         </div>
+        {/* ── Stock grid ── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {(pfTab === "50" ? pf50 : pfTab === "100" ? pf100 : pf200)
+          {loading && allStocks.length === 0 && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </>
+          )}
+          {!loading &&
+            allStocks.filter((s) => s.price > 0 && s.price <= pfCeiling)
+              .length === 0 && (
+              <div className="col-span-full py-2 text-xs text-gray-400">
+                No stocks found under ₹{pfCeiling}.
+              </div>
+            )}
+          {allStocks
+            .filter((s) => s.price > 0 && s.price <= pfCeiling)
             .slice(0, 5)
             .map((s, idx) => (
               <div
@@ -416,6 +541,7 @@ export default function MarketDiscovery() {
                 className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="text-sm font-semibold">{s.symbol}</div>
+                <div className="mb-1 text-xs text-gray-400">LTP</div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm">₹{s.price.toFixed(2)}</span>
                   <PriceBadge value={s.changePercent} />
