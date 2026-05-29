@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:24.16.0-alpine AS builder
 WORKDIR /app
 RUN corepack enable pnpm
 
@@ -13,7 +13,7 @@ COPY . .
 RUN npx tsc --build tsconfig.docker.json --force
 
 # Stage 2: Runtime
-FROM node:22-alpine AS runner
+FROM node:24.16.0-alpine AS runner
 WORKDIR /app
 RUN corepack enable pnpm
 
