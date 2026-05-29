@@ -39,9 +39,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
+import { NotificationDropdown } from "@/features/notifications/components/notification-dropdown";
 import { marketDataService } from "@/lib/market-data";
-
-import { NotificationDropdown } from "./notification-dropdown";
 
 interface MarketData {
   symbol: string;

@@ -1,17 +1,9 @@
-// Shared type definitions for market data features.
-
-export interface MarketIndex {
-  name: string;
-  value: number;
-  change: number;
-  changePercent: number;
-  isPositive: boolean;
-}
-
-export interface StockItem {
-  symbol: string;
-  exchange: string;
-  price: number;
-  changePct: number;
-  change?: number;
-}
+/**
+ * lib/types/market.ts — backward-compatibility re-export shim
+ *
+ * Market types have moved to:
+ *   features/market/types/index.ts
+ *
+ * @deprecated Import from "@/features/market/types" instead.
+ */
+export type { MarketIndex, StockItem } from "@/features/market/types";

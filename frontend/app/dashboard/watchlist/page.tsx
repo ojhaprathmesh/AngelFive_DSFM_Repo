@@ -9,16 +9,16 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useWatchlistData } from "@/components/watchlist/hooks/useWatchlistData";
-import { WatchlistEditPanel } from "@/components/watchlist/WatchlistEditPanel";
-import { WatchlistList } from "@/components/watchlist/WatchlistList";
+import { WatchlistChart } from "@/components/watchlist-chart";
+import { StockOverviewPanel } from "@/components/watchlist-stock-overview";
+import { WatchlistEditPanel } from "@/features/watchlists/components/WatchlistEditPanel";
+import { WatchlistList } from "@/features/watchlists/components/WatchlistList";
 import {
   AddStockModal,
   CreateWatchlistModal,
-} from "@/components/watchlist/WatchlistModals";
-import { WatchlistChart } from "@/components/watchlist-chart";
-import { StockOverviewPanel } from "@/components/watchlist-stock-overview";
-import { watchlistService } from "@/lib/watchlists";
+} from "@/features/watchlists/components/WatchlistModals";
+import { useWatchlistData } from "@/features/watchlists/hooks/useWatchlistData";
+import { watchlistService } from "@/features/watchlists/services/watchlists";
 
 export default function WatchlistPage() {
   const {

@@ -37,7 +37,7 @@ export function getQueue(name: QueueName): Queue | null {
   if (!connection) return null;
 
   const queue = new Queue(name, {
-    connection,
+    connection: connection as any,
     defaultJobOptions: {
       attempts: 3,
       backoff: {
@@ -74,7 +74,9 @@ export function getQueueEvents(name: QueueName): QueueEvents | null {
   const connection = getRedisClient();
   if (!connection) return null;
 
-  const events = new QueueEvents(name, { connection: connection.duplicate() });
+  const events = new QueueEvents(name, {
+    connection: connection.duplicate() as any,
+  });
   queueEvents.set(name, events);
 
   events.on("completed", ({ jobId }) => {
