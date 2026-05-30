@@ -47,6 +47,26 @@ const calculateEMA = (
   return result;
 };
 
+const WATCHLIST_CHART_OPTIONS = {
+  rightPriceScale: { borderColor: "#e5e7eb", visible: true },
+  timeScale: {
+    borderVisible: true,
+    timeVisible: true,
+    visible: true,
+    rightOffset: 2,
+    barSpacing: 6,
+    fixLeftEdge: true,
+    minimumHeight: 80,
+  },
+  crosshair: { mode: 1 },
+  handleScroll: { mouseWheel: true, pressedMouseMove: true },
+  handleScale: {
+    axisPressedMouseMove: true,
+    mouseWheel: true,
+    pinch: true,
+  },
+};
+
 export const WatchlistChart = React.memo(function WatchlistChart({
   symbol,
   exchange = "NSE",
@@ -64,25 +84,7 @@ export const WatchlistChart = React.memo(function WatchlistChart({
 
   const { chartRef } = useChartLifecycle({
     containerRef: chartContainerRef,
-    options: {
-      rightPriceScale: { borderColor: "#e5e7eb", visible: true },
-      timeScale: {
-        borderVisible: true,
-        timeVisible: true,
-        visible: true,
-        rightOffset: 2,
-        barSpacing: 6,
-        fixLeftEdge: true,
-        minimumHeight: 80,
-      },
-      crosshair: { mode: 1 },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true },
-      handleScale: {
-        axisPressedMouseMove: true,
-        mouseWheel: true,
-        pinch: true,
-      },
-    },
+    options: WATCHLIST_CHART_OPTIONS,
   });
 
   // Main Candlestick Series

@@ -16,6 +16,14 @@ import {
 } from "../hooks/useTradingChartData";
 import { MarketIndexTabs } from "./market-index-tabs";
 
+const CHART_OPTIONS = {
+  rightPriceScale: { borderColor: "#e5e7eb", visible: true },
+  leftPriceScale: { visible: false },
+  timeScale: { borderVisible: false, timeVisible: true },
+  handleScroll: false,
+  handleScale: false,
+};
+
 export const TradingChart = React.memo(function TradingChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState<IndexType>("SENSEX");
@@ -53,13 +61,7 @@ export const TradingChart = React.memo(function TradingChart() {
   // Initialize chart primitives
   const { chartRef } = useChartLifecycle({
     containerRef: chartContainerRef,
-    options: {
-      rightPriceScale: { borderColor: "#e5e7eb", visible: true },
-      leftPriceScale: { visible: false },
-      timeScale: { borderVisible: false, timeVisible: true },
-      handleScroll: false,
-      handleScale: false,
-    },
+    options: CHART_OPTIONS,
   });
 
   const { updateOptions } = useChartSeries({
