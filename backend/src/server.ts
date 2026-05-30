@@ -24,6 +24,9 @@ import { notificationService } from "./services/notification";
 // Explicitly reference notificationService to ensure it's initialized and listeners are attached
 const _ = notificationService;
 
+// Import workers to initialize background job listeners
+import "./workers";
+
 const app: Express = express();
 // Trust the first proxy (Render load balancer) to correctly identify client IPs for rate limiting
 app.set("trust proxy", 1);

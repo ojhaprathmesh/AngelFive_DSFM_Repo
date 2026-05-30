@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 
+import { pollJobResult } from "../utils/polling";
+
 interface MPTResult {
   symbols?: string[];
   optimal_portfolio?: {
@@ -50,7 +52,8 @@ export function usePortfolioOptimization(): UsePortfolioOptimizationReturn {
         body: JSON.stringify({ symbols, timeframe, riskFreeRate: 0.06 }),
       });
       if (resp.ok) {
-        const data: MPTResult = await resp.json();
+        const { jobId, queueName } = await resp.json();
+        const data = await pollJobResult<MPTResult>(queueName, jobId);
         setMptResult(data);
       } else {
         const errorData = await resp
@@ -86,7 +89,8 @@ export function usePortfolioOptimization(): UsePortfolioOptimizationReturn {
         }),
       });
       if (resp.ok) {
-        const data: BLResult = await resp.json();
+        const { jobId, queueName } = await resp.json();
+        const data = await pollJobResult<BLResult>(queueName, jobId);
         setBlResult(data);
       } else {
         const errorData = await resp

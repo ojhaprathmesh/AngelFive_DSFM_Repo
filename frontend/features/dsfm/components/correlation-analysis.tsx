@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { pollJobResult } from "../utils/polling";
+
 export function CorrelationAnalysis() {
   const [loading, setLoading] = useState(false);
   const [correlationData, setCorrelationData] = useState<any>(null);
@@ -33,7 +35,8 @@ export function CorrelationAnalysis() {
     try {
       const resp = await fetch(`/api/dsfm/correlation?timeframe=${timeframe}`);
       if (resp.ok) {
-        const data = await resp.json();
+        const { jobId, queueName } = await resp.json();
+        const data = await pollJobResult<any>(queueName, jobId);
         setCorrelationData(data);
       } else {
         const errorData = await resp

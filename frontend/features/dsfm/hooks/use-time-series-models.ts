@@ -6,6 +6,8 @@ import type {
   LSTMResult,
 } from "@/features/dsfm/types";
 
+import { pollJobResult } from "../utils/polling";
+
 interface UseTimeSeriesModelsReturn {
   arimaResult: ArimaResult | null;
   garchResult: GarchResult | null;
@@ -176,7 +178,8 @@ export function useTimeSeriesModels(): UseTimeSeriesModelsReturn {
           body: JSON.stringify({ symbol, timeframe: arimaTimeframe, order }),
         });
         if (resp.ok) {
-          const data: ArimaResult = await resp.json();
+          const { jobId, queueName } = await resp.json();
+          const data = await pollJobResult<ArimaResult>(queueName, jobId);
           setArimaResult(data);
         } else {
           const errorData = await resp
@@ -207,7 +210,8 @@ export function useTimeSeriesModels(): UseTimeSeriesModelsReturn {
           body: JSON.stringify({ symbol, timeframe: garchTimeframe, order }),
         });
         if (resp.ok) {
-          const data: GarchResult = await resp.json();
+          const { jobId, queueName } = await resp.json();
+          const data = await pollJobResult<GarchResult>(queueName, jobId);
           setGarchResult(data);
         } else {
           const errorData = await resp
@@ -242,7 +246,8 @@ export function useTimeSeriesModels(): UseTimeSeriesModelsReturn {
           }),
         });
         if (resp.ok) {
-          const data: LSTMResult = await resp.json();
+          const { jobId, queueName } = await resp.json();
+          const data = await pollJobResult<LSTMResult>(queueName, jobId);
           setLstmResult(data);
         } else {
           const errorData = await resp
