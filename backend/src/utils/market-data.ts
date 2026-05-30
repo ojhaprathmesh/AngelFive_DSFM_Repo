@@ -30,65 +30,22 @@ export interface SmartAPICandleResponse {
   data?: Array<[string, number, number, number, number, number]>;
 }
 
-let instrumentCache: InstrumentEntry[] | null = null;
-let instrumentCacheTime = 0;
-const INSTRUMENT_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+import { resolveSymbolToToken } from "./instrument-master";
 
 const smartAPIkey = ENV.SMARTAPI_API_KEY;
 const localIp = ENV.SMARTAPI_LOCAL_IP;
 const publicIp = ENV.SMARTAPI_PUBLIC_IP;
 const mac = ENV.SMARTAPI_MAC_ADDRESS;
 
-export async function loadInstrumentMaster(): Promise<InstrumentEntry[]> {
-  if (
-    instrumentCache &&
-    Date.now() - instrumentCacheTime < INSTRUMENT_CACHE_TTL
-  ) {
-    return instrumentCache;
-  }
-
-  try {
-    const resp = await fetch(
-      "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json",
-    );
-    if (!resp.ok) return [];
-    const instruments = (await resp.json()) as InstrumentEntry[];
-    instrumentCache = instruments;
-    instrumentCacheTime = Date.now();
-    return instruments;
-  } catch (e) {
-    logger.error({ err: e }, "Failed to load instrument master:");
-    return [];
-  }
-}
-
 export async function getSymbolToken(
   symbol: string,
   exchange: string = "NSE",
 ): Promise<{ token: string; exchange: string } | null> {
-  const instruments = await loadInstrumentMaster();
-  const upper = symbol.toUpperCase();
-  const exchangeUpper = exchange.toUpperCase();
-  const match = instruments.find((item) => {
-    const entryExchange = String(
-      item.exchangeSeg || item.exch_seg || "",
-    ).toUpperCase();
-    if (entryExchange !== exchangeUpper) return false;
-    const candidates = [
-      item.symbol?.toUpperCase(),
-      item.name?.toUpperCase(),
-      item.tradingSymbol?.toUpperCase(),
-      item.tradingsymbol?.toUpperCase(),
-    ];
-    return candidates.some(
-      (candidate) => candidate === upper || candidate === `${upper}-EQ`,
-    );
-  });
-
+  const match = await resolveSymbolToToken(symbol, exchange);
   if (match && match.token) {
-    return { token: String(match.token), exchange: exchangeUpper };
+    return { token: match.token, exchange: match.exchange };
   }
-  logger.warn(`Symbol token not found for ${symbol} on ${exchangeUpper}`);
+  logger.warn(`Symbol token not found for ${symbol} on ${exchange}`);
   return null;
 }
 

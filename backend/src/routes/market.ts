@@ -12,6 +12,12 @@ import {
 } from "../lib/smartapi";
 import { verifyToken } from "../middleware/auth";
 import { swrCache, TTL } from "../services/cache";
+import {
+  resolveSymbolsToTokens,
+  resolveSymbolToToken,
+  searchInstrumentsStream,
+} from "../utils/instrument-master";
+
 const router: Router = Router();
 
 type Quote = {
@@ -138,22 +144,13 @@ async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
   if (rows && rows.length > 0) {
     try {
       const exchangeTokens: Record<string, string[]> = { NSE: [] };
-      const instruments = await loadInstrumentMaster();
+      const symbolsToResolve = rows.map((r) => String(r.symbol).toUpperCase());
+      const resolved = await resolveSymbolsToTokens(symbolsToResolve, "NSE");
       for (const r of rows) {
         const upper = String(r.symbol).toUpperCase();
-        const match = instruments.find((item: any) => {
-          if (item.exch_seg !== "NSE") return false;
-          const c1 = item.symbol?.toUpperCase();
-          const c2 = item.tradingsymbol?.toUpperCase();
-          return (
-            c1 === upper ||
-            c1 === `${upper}-EQ` ||
-            c2 === upper ||
-            c2 === `${upper}-EQ`
-          );
-        });
+        const match = resolved[upper];
         if (match?.token) {
-          exchangeTokens.NSE.push(String(match.token));
+          exchangeTokens.NSE.push(match.token);
         }
       }
       if (exchangeTokens.NSE.length > 0) {
@@ -173,8 +170,24 @@ async function fetchQuotesForMarketPanels(): Promise<Quote[]> {
   return fetchQuotesFromSmartApiBasket();
 }
 
+async function getCachedMarketQuotesPanel(): Promise<Quote[]> {
+  return swrCache.get(
+    "market:quotes:panel",
+    async () => {
+      const start = Date.now();
+      const raw = await fetchQuotesForMarketPanels();
+      logger.info(
+        { durationMs: Date.now() - start, count: raw.length },
+        "[Market] Quote panel fetched from source",
+      );
+      return raw.map((q) => ({ ...q, symbol: q.symbol.toUpperCase() }));
+    },
+    TTL.LIVE_PRICE,
+  );
+}
+
 async function fetchDiscoveryData() {
-  let rawQuotes = await fetchQuotesForMarketPanels();
+  let rawQuotes = await getCachedMarketQuotesPanel();
 
   // If the fetched quotes are all zero-priced (token resolution failed), fall back to basket
   const hasNonZeroPrices = rawQuotes.some((q) => q.regularMarketPrice > 0);
@@ -277,21 +290,7 @@ async function fetchSmartApiHistoricalPrice(
   toDate: string,
 ): Promise<{ startPrice: number; endPrice: number } | null> {
   try {
-    // The AngelOne instrument master is a very large JSON file and can cause OOM
-    // on low-memory instances (e.g. 512MB). In production we skip this path and
-    // rely on the estimated-performers fallback later in the pipeline.
-    if (ENV.NODE_ENV === "production") return null;
-
-    const instruments = await loadInstrumentMaster();
-    const upper = symbol.toUpperCase();
-    const match = instruments.find((item: any) => {
-      if (item.exch_seg?.toUpperCase() !== "NSE") return false;
-      const candidates = [
-        item.symbol?.toUpperCase(),
-        item.tradingsymbol?.toUpperCase(),
-      ];
-      return candidates.some((c) => c === upper || c === `${upper}-EQ`);
-    });
+    const match = await resolveSymbolToToken(symbol, "NSE");
 
     if (!match?.token) {
       logger.info(`[Historical] Token not found for ${symbol}`);
@@ -331,7 +330,7 @@ async function fetchPerformersData(
 ): Promise<Array<{ symbol: string; price: number; changePct: number }>> {
   logger.info(`[Performers] Fetching fresh data for timeframe: ${tf}`);
 
-  const quotes = await fetchQuotesForMarketPanels();
+  const quotes = await getCachedMarketQuotesPanel();
   if (quotes.length === 0) {
     logger.warn("[Performers] No quotes from NSE or SmartAPI basket");
     return [];
@@ -502,20 +501,7 @@ router.get("/quotes", async (req: Request, res: Response): Promise<void> => {
       .filter(Boolean);
 
     // Cache the full quote panel (shared across callers), then filter client-side
-    const cacheKey = "market:quotes:panel";
-    const quotesAll: Quote[] = await swrCache.get(
-      cacheKey,
-      async () => {
-        const start = Date.now();
-        const raw = await fetchQuotesForMarketPanels();
-        logger.info(
-          { durationMs: Date.now() - start, count: raw.length },
-          "[NSE] Quote panel fetched",
-        );
-        return raw.map((q) => ({ ...q, symbol: q.symbol.toUpperCase() }));
-      },
-      TTL.LIVE_PRICE,
-    );
+    const quotesAll = await getCachedMarketQuotesPanel();
 
     const filtered = quotesAll
       .filter((q) => wanted.includes(q.symbol))
@@ -654,71 +640,78 @@ router.get(
         return;
       }
 
-      // Try to get token from instrument master
-      const instruments = await loadInstrumentMaster();
-      logger.info(
-        `[symbol-token] Looking for ${symbol} on ${exchange}, total instruments: ${instruments.length}`,
-      );
+      // Try multiple matching strategies using the streaming reader
+      let match: any = null;
 
-      // Try multiple matching strategies
-      let match = instruments.find((item) => {
-        if (item.exch_seg?.toUpperCase() !== exchange) return false;
+      // Strategy 1: Exact match with exchange seg filter
+      await searchInstrumentsStream((inst) => {
+        if (inst.exch_seg?.toUpperCase() !== exchange) return false;
         const candidates = [
-          item.symbol?.toUpperCase(),
-          item.name?.toUpperCase(),
-          item.tradingsymbol?.toUpperCase(),
+          inst.symbol?.toUpperCase(),
+          inst.name?.toUpperCase(),
+          inst.tradingsymbol?.toUpperCase(),
         ];
         const symbolUpper = symbol.toUpperCase();
-        return candidates.some(
-          (candidate) =>
-            candidate === symbolUpper ||
-            candidate === `${symbolUpper}-EQ` ||
-            (candidate && candidate.startsWith(`${symbolUpper}-`)),
+        const found = candidates.some(
+          (c) =>
+            c === symbolUpper ||
+            c === `${symbolUpper}-EQ` ||
+            (c && c.startsWith(`${symbolUpper}-`)),
         );
+        if (found) {
+          match = inst;
+          return true; // Stop streaming early
+        }
+        return false;
       });
 
-      // If not found, try without exchange filter (broader search)
+      // Strategy 2: Exact match without exchange seg filter
       if (!match) {
         logger.info(
           `[symbol-token] Not found with exchange filter, trying without...`,
         );
-        match = instruments.find((item) => {
+        await searchInstrumentsStream((inst) => {
           const candidates = [
-            item.symbol?.toUpperCase(),
-            item.name?.toUpperCase(),
-            item.tradingsymbol?.toUpperCase(),
+            inst.symbol?.toUpperCase(),
+            inst.name?.toUpperCase(),
+            inst.tradingsymbol?.toUpperCase(),
           ];
           const symbolUpper = symbol.toUpperCase();
-          return candidates.some(
-            (candidate) =>
-              candidate === symbolUpper ||
-              candidate === `${symbolUpper}-EQ` ||
-              (candidate && candidate.startsWith(`${symbolUpper}-`)),
+          const found = candidates.some(
+            (c) =>
+              c === symbolUpper ||
+              c === `${symbolUpper}-EQ` ||
+              (c && c.startsWith(`${symbolUpper}-`)),
           );
+          if (found) {
+            match = inst;
+            return true; // Stop streaming early
+          }
+          return false;
         });
-        if (match) {
-          logger.info(
-            `[symbol-token] Found without exchange filter, using exchange: ${match.exch_seg}`,
-          );
-        }
       }
 
-      // If still not found, try partial matching
+      // Strategy 3: Partial matching
       if (!match) {
         logger.info(`[symbol-token] Trying partial match...`);
         const symbolUpper = symbol.toUpperCase();
-        match = instruments.find((item) => {
+        await searchInstrumentsStream((inst) => {
           const candidates = [
-            item.symbol?.toUpperCase(),
-            item.name?.toUpperCase(),
-            item.tradingsymbol?.toUpperCase(),
+            inst.symbol?.toUpperCase(),
+            inst.name?.toUpperCase(),
+            inst.tradingsymbol?.toUpperCase(),
           ];
-          return candidates.some(
-            (candidate) =>
-              candidate &&
-              (candidate.includes(symbolUpper) ||
-                symbolUpper.includes(candidate?.replace(/-EQ$/, "") || "")),
+          const found = candidates.some(
+            (c) =>
+              c &&
+              (c.includes(symbolUpper) ||
+                symbolUpper.includes(c.replace(/-EQ$/, ""))),
           );
+          if (found) {
+            match = inst;
+            return true; // Stop streaming early
+          }
+          return false;
         });
       }
 
@@ -738,27 +731,6 @@ router.get(
     }
   },
 );
-
-async function loadInstrumentMaster(): Promise<any[]> {
-  return swrCache.get(
-    "market:instrument_master",
-    async () => {
-      try {
-        const resp = await fetch(
-          "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json",
-        );
-        if (resp.ok) {
-          const data = await resp.json();
-          return Array.isArray(data) ? data : [];
-        }
-      } catch (e) {
-        logger.error({ err: e }, "Failed to load instrument master:");
-      }
-      return [];
-    },
-    TTL.INSTRUMENT_MASTER,
-  );
-}
 
 // SmartAPI proxy endpoints - credentials stay on backend, frontend calls these
 const INDEX_TOKEN_MAP: Record<string, { exchange: string; token: string }> = {
@@ -782,30 +754,21 @@ router.post(
         Array.isArray(symbols) &&
         symbols.length > 0
       ) {
+        // Resolve symbols batch-wise using streaming scrip master
+        const unresolvedSymbols = symbols.filter((s) => !INDEX_TOKEN_MAP[s]);
+        const resolvedMap =
+          unresolvedSymbols.length > 0
+            ? await resolveSymbolsToTokens(unresolvedSymbols)
+            : {};
+
         for (const symbol of symbols) {
           let info = INDEX_TOKEN_MAP[symbol];
-          if (!info) {
-            const instruments = await loadInstrumentMaster();
-            const upper = symbol.toUpperCase();
-            const match = instruments.find((item: any) => {
-              const candidates = [
-                item.symbol?.toUpperCase(),
-                item.name?.toUpperCase(),
-                item.tradingsymbol?.toUpperCase(),
-              ];
-              return candidates.some(
-                (c) =>
-                  c === upper ||
-                  c === `${upper}-EQ` ||
-                  (c && c.startsWith(`${upper}-`)),
-              );
-            });
-            if (match?.token) {
-              info = {
-                exchange: match.exch_seg || "NSE",
-                token: String(match.token),
-              };
-            }
+          if (!info && resolvedMap[symbol.toUpperCase()]) {
+            const match = resolvedMap[symbol.toUpperCase()];
+            info = {
+              exchange: match.exchange || "NSE",
+              token: match.token,
+            };
           }
           if (info) {
             if (!exchangeTokens[info.exchange])

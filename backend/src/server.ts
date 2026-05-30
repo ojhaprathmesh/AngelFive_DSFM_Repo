@@ -24,8 +24,20 @@ import { notificationService } from "./services/notification";
 // Explicitly reference notificationService to ensure it's initialized and listeners are attached
 const _ = notificationService;
 
-// Import workers to initialize background job listeners
-import "./workers";
+// Import workers to initialize background job listeners conditionally
+if (
+  process.env.RUN_WORKERS === "true" ||
+  (!process.env.RUN_WORKERS && ENV.NODE_ENV !== "production")
+) {
+  logger.info("[Server] Starting background workers in-process.");
+  import("./workers").catch((err) => {
+    logger.error({ err }, "[Server] Failed to load workers in-process");
+  });
+} else {
+  logger.info(
+    "[Server] Background workers disabled in-process (run separately in worker process).",
+  );
+}
 
 const app: Express = express();
 // Trust the first proxy (Render load balancer) to correctly identify client IPs for rate limiting

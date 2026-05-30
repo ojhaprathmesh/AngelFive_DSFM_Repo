@@ -98,9 +98,19 @@ function createClient(): Redis {
     _status = "connecting"; // still handshaking
   });
 
-  client.on("ready", () => {
+  client.on("ready", async () => {
     logger.info("[Redis] ✅ Ready");
     _status = "connected";
+
+    // Attempt to set eviction policy to noeviction (required by BullMQ)
+    try {
+      await client.config("SET", "maxmemory-policy", "noeviction");
+      logger.info("[Redis] Eviction policy set to 'noeviction' successfully.");
+    } catch (err: any) {
+      logger.warn(
+        `[Redis] Could not set maxmemory-policy to noeviction: ${err.message}. Ensure this is configured in your Redis provider dashboard.`,
+      );
+    }
   });
 
   client.on("close", () => {
