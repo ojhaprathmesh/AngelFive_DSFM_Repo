@@ -35,15 +35,17 @@ export function useChartSeries({
     null,
   );
 
-  // Re-initialize series if type changes
   useEffect(() => {
     if (!chartRef.current) return;
 
-    const currentChart = chartRef.current; // Copy ref value for cleanup
+    const currentChart = chartRef.current;
 
-    // Cleanup old series
     if (seriesRef.current) {
-      currentChart.removeSeries(seriesRef.current);
+      try {
+        currentChart.removeSeries(seriesRef.current);
+      } catch (e) {
+        console.error("Error removing series:", e);
+      }
       seriesRef.current = null;
     }
 
@@ -85,7 +87,11 @@ export function useChartSeries({
 
     return () => {
       if (currentChart && seriesRef.current) {
-        currentChart.removeSeries(seriesRef.current);
+        try {
+          currentChart.removeSeries(seriesRef.current);
+        } catch (e) {
+          // Silent catch: chart may have been disposed already
+        }
         seriesRef.current = null;
       }
     };
