@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
         source: "/api/notifications/:path*",
         destination: `${URL_BASE}/api/notifications/:path*`,
       },
+      {
+        source: "/api/jobs/:path*",
+        destination: `${URL_BASE}/api/jobs/:path*`,
+      },
     ];
   },
 };
