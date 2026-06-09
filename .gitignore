@@ -24,6 +24,7 @@ __pycache__/
 
 # Scripts & Data
 scripts/
+**/instruments.json
 
 # Environment / Secrets
 .env

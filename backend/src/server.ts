@@ -20,6 +20,7 @@ import marketRouter from "./routes/market";
 import notificationsRouter from "./routes/notifications";
 import watchlistRouter from "./routes/watchlists";
 import { notificationService } from "./services/notification";
+import { syncInstrumentMasterIfStale } from "./utils/instrument-master";
 
 // Explicitly reference notificationService to ensure it's initialized and listeners are attached
 const _ = notificationService;
@@ -38,6 +39,13 @@ if (
     "[Server] Background workers disabled in-process (run separately in worker process).",
   );
 }
+
+// Kick off instrument master sync in the background (non-blocking).
+// This downloads ~180MB of Angel One scrip data into Redis so that
+// symbol→token resolution is O(1) and never depends on a local file.
+void syncInstrumentMasterIfStale().catch((err) =>
+  logger.error({ err }, "[Server] Instrument master sync failed at startup"),
+);
 
 const app: Express = express();
 // Trust the first proxy (Render load balancer) to correctly identify client IPs for rate limiting

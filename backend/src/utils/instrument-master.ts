@@ -1,13 +1,37 @@
-import { createReadStream, createWriteStream, existsSync } from "fs";
-import { stat } from "fs/promises";
-import path from "path";
+/**
+ * instrument-master.ts
+ *
+ * Redis-backed instrument token resolution.
+ *
+ * Architecture:
+ *  - On server start, `syncInstrumentMasterIfStale()` runs in the background.
+ *  - It streams the ~180MB Angel One ScripMaster JSON and pipelines HSET
+ *    commands into Redis hash keys, one per exchange (e.g. `instruments:NSE`).
+ *  - Multiple key variants are stored per instrument (e.g. "IDEA" and "IDEA-EQ")
+ *    so lookups work regardless of how callers format the symbol.
+ *  - `resolveSymbolsToTokens()` now does O(1) Redis HMGET lookups instead of
+ *    scanning through a potentially-corrupt 180MB file.
+ *  - If Redis is unavailable, an error is logged and empty results returned
+ *    (graceful degradation — no process crash).
+ */
 
 import { logger } from "../lib/logger";
+import { getRedisClient } from "../lib/redis";
 
 const MASTER_URL =
   "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json";
-const CACHE_PATH = path.resolve(__dirname, "../../instruments.json");
-const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+/** Redis key storing ISO timestamp of the last successful sync. */
+const SYNC_TS_KEY = "instruments:lastSynced";
+
+/** Redis hash key prefix — one hash per exchange, e.g. `instruments:NSE`. */
+const HASH_PREFIX = "instruments";
+
+/** Re-sync if the data in Redis is older than 12 hours. */
+const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+/** Batch size for Redis pipeline HSET commands. */
+const PIPELINE_BATCH_SIZE = 500;
 
 export interface ScripInstrument {
   token: string;
@@ -22,164 +46,240 @@ export interface ScripInstrument {
   tradingsymbol?: string;
 }
 
+export interface ResolvedToken {
+  exchange: string;
+  token: string;
+  symbol: string;
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
 /**
- * Ensures the instrument master is downloaded and cached locally.
+ * Checks if the instrument data in Redis is fresh (< 12 hours old).
  */
-export async function ensureInstrumentMasterCached(): Promise<string> {
+async function isCacheFresh(): Promise<boolean> {
   try {
-    let isFresh = false;
-    if (existsSync(CACHE_PATH)) {
-      const s = await stat(CACHE_PATH);
-      if (Date.now() - s.mtimeMs < CACHE_MAX_AGE_MS && s.size > 100_000) {
-        isFresh = true;
-      }
-    }
-
-    if (isFresh) {
-      logger.debug("[InstrumentMaster] Cache is fresh.");
-      return CACHE_PATH;
-    }
-
-    logger.info(
-      `[InstrumentMaster] Cache stale or missing. Downloading from ${MASTER_URL}...`,
-    );
-    const response = await fetch(MASTER_URL);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to download instrument master: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Response body reader is undefined");
-    }
-
-    const writer = createWriteStream(CACHE_PATH);
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        writer.write(Buffer.from(value));
-      }
-    } finally {
-      writer.end();
-    }
-
-    logger.info(
-      `[InstrumentMaster] Successfully cached master to ${CACHE_PATH}`,
-    );
-    return CACHE_PATH;
-  } catch (err: any) {
-    logger.error(
-      { err },
-      "[InstrumentMaster] Failed to cache scrip master, using fallback if file exists",
-    );
-    if (existsSync(CACHE_PATH)) {
-      return CACHE_PATH;
-    }
-    throw err;
+    const redis = getRedisClient();
+    if (!redis) return false;
+    const ts = await redis.get(SYNC_TS_KEY);
+    if (!ts) return false;
+    return Date.now() - new Date(ts).getTime() < CACHE_MAX_AGE_MS;
+  } catch {
+    return false;
   }
 }
 
 /**
- * Searches the instrument master file in a streaming fashion using 64KB chunks.
- * Passes parsed flat JSON objects one by one to the onMatch callback.
+ * Downloads the ScripMaster JSON from Angel One and populates Redis hashes.
+ * Uses Node.js streaming + Redis pipeline batching to handle the ~180MB file
+ * without loading it entirely into memory.
+ *
+ * Redis structure:
+ *   HSET instruments:NSE  IDEA      '{"token":"14366","exchange":"NSE","symbol":"IDEA-EQ"}'
+ *   HSET instruments:NSE  IDEA-EQ   '{"token":"14366","exchange":"NSE","symbol":"IDEA-EQ"}'
  */
-export async function searchInstrumentsStream(
-  onMatch: (inst: ScripInstrument) => boolean,
-): Promise<void> {
-  const filePath = await ensureInstrumentMasterCached();
+async function populateInstrumentsInRedis(): Promise<number> {
+  const redis = getRedisClient();
+  if (!redis) throw new Error("Redis client is not available");
 
-  return new Promise((resolve, reject) => {
-    const stream = createReadStream(filePath, {
-      encoding: "utf8",
-      highWaterMark: 64 * 1024,
-    });
-    let buffer = "";
+  logger.info(`[InstrumentMaster] Downloading ScripMaster from ${MASTER_URL}`);
+  const response = await fetch(MASTER_URL);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download instrument master: ${response.status} ${response.statusText}`,
+    );
+  }
 
-    stream.on("data", (chunk: string | Buffer) => {
-      buffer += chunk.toString();
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Response body reader is undefined");
 
-      const regex = /\{[^{}]+\}/g;
-      let match;
+  let buffer = "";
+  let totalCount = 0;
+
+  // We accumulate pipeline entries and flush in batches.
+  // Each entry is [exchangeKey, symbolKey, jsonValue]
+  type PipelineEntry = [string, string, string];
+  let batch: PipelineEntry[] = [];
+
+  const flushBatch = async (entries: PipelineEntry[]) => {
+    if (entries.length === 0) return;
+    const pipeline = redis.pipeline();
+    for (const [hashKey, field, value] of entries) {
+      pipeline.hset(hashKey, field, value);
+    }
+    await pipeline.exec();
+  };
+
+  const processInstrument = async (inst: ScripInstrument) => {
+    if (!inst.token || !inst.exch_seg) return;
+
+    const exchange = inst.exch_seg.toUpperCase();
+    const hashKey = `${HASH_PREFIX}:${exchange}`;
+    const payload: ResolvedToken = {
+      token: String(inst.token),
+      exchange,
+      symbol: inst.symbol || inst.name || "",
+    };
+    const json = JSON.stringify(payload);
+
+    // Store under multiple key variants so lookups work regardless of format
+    const keys = new Set<string>();
+    if (inst.symbol) keys.add(inst.symbol.toUpperCase());
+    if (inst.tradingsymbol) keys.add(inst.tradingsymbol.toUpperCase());
+    if (inst.name) keys.add(inst.name.toUpperCase());
+
+    // Also add the base name without suffix (e.g. "IDEA" from "IDEA-EQ")
+    for (const k of [...keys]) {
+      const base = k.replace(/-EQ$|-BE$|-SM$|-IV$/, "");
+      if (base !== k) keys.add(base);
+    }
+
+    for (const key of keys) {
+      batch.push([hashKey, key, json]);
+      totalCount++;
+    }
+
+    if (batch.length >= PIPELINE_BATCH_SIZE) {
+      await flushBatch(batch);
+      batch = [];
+    }
+  };
+
+  // Stream + parse: extract flat `{...}` objects from the JSON array
+  const objectRegex = /\{[^{}]+\}/g;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += new TextDecoder().decode(value);
+
+      let match: RegExpExecArray | null;
       let lastIndex = 0;
 
-      while ((match = regex.exec(buffer)) !== null) {
+      while ((match = objectRegex.exec(buffer)) !== null) {
         try {
           const inst = JSON.parse(match[0]) as ScripInstrument;
-          const shouldStop = onMatch(inst);
-          if (shouldStop) {
-            stream.destroy();
-            resolve();
-            return;
-          }
-        } catch (e) {
-          // Ignore parse errors from partial reads
+          await processInstrument(inst);
+        } catch {
+          // Partial chunk — will be re-parsed on next iteration
         }
-        lastIndex = regex.lastIndex;
+        lastIndex = objectRegex.lastIndex;
       }
 
+      // Keep only the unparsed tail for the next chunk
       buffer = buffer.slice(lastIndex);
-    });
+      objectRegex.lastIndex = 0;
+    }
 
-    stream.on("end", () => {
-      resolve();
-    });
+    // Flush remaining batch
+    await flushBatch(batch);
 
-    stream.on("error", (err: Error) => {
-      reject(err);
-    });
-  });
+    // Mark sync timestamp
+    await redis.set(SYNC_TS_KEY, new Date().toISOString());
+
+    logger.info(
+      `[InstrumentMaster] ✅ Synced ${totalCount} instrument keys to Redis`,
+    );
+    return totalCount;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────────
+
+/**
+ * Call this at server startup (fire-and-forget).
+ * Checks if the Redis cache is fresh; if not, downloads and re-populates it.
+ */
+export async function syncInstrumentMasterIfStale(): Promise<void> {
+  try {
+    const fresh = await isCacheFresh();
+    if (fresh) {
+      logger.debug("[InstrumentMaster] Redis cache is fresh — skipping sync.");
+      return;
+    }
+    logger.info(
+      "[InstrumentMaster] Redis cache is stale or missing — starting sync...",
+    );
+    await populateInstrumentsInRedis();
+  } catch (err: any) {
+    logger.error(
+      { err },
+      "[InstrumentMaster] ❌ Failed to sync instrument master to Redis",
+    );
+    // Non-fatal: the server continues to run; lookups will return empty results
+    // until the next successful sync attempt.
+  }
 }
 
 /**
- * Resolves a batch of symbols to their exchange and token info.
- * Stops streaming immediately when all symbols have been resolved.
+ * Resolves a batch of symbols to their exchange and token info using Redis.
+ * Falls back to empty results if Redis is unavailable.
+ *
+ * @param symbols  List of symbol strings (e.g. ["IDEA", "TATASTEEL"])
+ * @param exchange Exchange to look up (default: "NSE")
  */
 export async function resolveSymbolsToTokens(
   symbols: string[],
   exchange = "NSE",
-): Promise<
-  Record<string, { exchange: string; token: string; symbol: string }>
-> {
-  const results: Record<
-    string,
-    { exchange: string; token: string; symbol: string }
-  > = {};
-  const uppercaseSymbols = symbols.map((s) => s.toUpperCase());
-  const remainingSymbols = new Set(uppercaseSymbols);
-  const exchangeUpper = exchange.toUpperCase();
+): Promise<Record<string, ResolvedToken>> {
+  const results: Record<string, ResolvedToken> = {};
 
-  await searchInstrumentsStream((inst) => {
-    if (inst.exch_seg?.toUpperCase() !== exchangeUpper) return false;
+  if (symbols.length === 0) return results;
 
-    const symbolUpper = inst.symbol?.toUpperCase();
-    const tradingSymbolUpper = inst.tradingsymbol?.toUpperCase();
-    const nameUpper = inst.name?.toUpperCase();
-
-    for (const s of remainingSymbols) {
-      const matches =
-        symbolUpper === s ||
-        symbolUpper === `${s}-EQ` ||
-        tradingSymbolUpper === s ||
-        tradingSymbolUpper === `${s}-EQ` ||
-        nameUpper === s ||
-        nameUpper === `${s}-EQ`;
-
-      if (matches && inst.token) {
-        results[s] = {
-          exchange: exchangeUpper,
-          token: String(inst.token),
-          symbol: inst.symbol || inst.name || s,
-        };
-        remainingSymbols.delete(s);
-        break;
-      }
+  try {
+    const redis = getRedisClient();
+    if (!redis) {
+      logger.warn(
+        "[InstrumentMaster] Redis unavailable — cannot resolve tokens",
+      );
+      return results;
     }
 
-    return remainingSymbols.size === 0;
-  });
+    const exchangeUpper = exchange.toUpperCase();
+    const hashKey = `${HASH_PREFIX}:${exchangeUpper}`;
+    const upperSymbols = symbols.map((s) => s.toUpperCase());
+
+    // Build a list of candidate keys (both "IDEA" and "IDEA-EQ")
+    const candidateKeys: string[] = [];
+    for (const s of upperSymbols) {
+      candidateKeys.push(s);
+      if (!s.endsWith("-EQ")) candidateKeys.push(`${s}-EQ`);
+    }
+
+    // Single HMGET call for all candidate keys — O(n) where n = 2 * symbols.length
+    const values = await redis.hmget(hashKey, ...candidateKeys);
+
+    // Map results back to the original symbol names
+    for (let i = 0; i < candidateKeys.length; i++) {
+      const val = values[i];
+      if (!val) continue;
+
+      const candidateKey = candidateKeys[i];
+      // Determine which original symbol this key belongs to
+      const originalSymbol =
+        upperSymbols.find(
+          (s) => s === candidateKey || `${s}-EQ` === candidateKey,
+        ) || candidateKey;
+
+      if (!results[originalSymbol]) {
+        try {
+          const parsed = JSON.parse(val) as ResolvedToken;
+          results[originalSymbol] = parsed;
+        } catch {
+          // Malformed stored value — skip
+        }
+      }
+    }
+  } catch (err: any) {
+    logger.error(
+      { err },
+      "[InstrumentMaster] Error resolving symbols from Redis",
+    );
+  }
 
   return results;
 }
@@ -190,7 +290,7 @@ export async function resolveSymbolsToTokens(
 export async function resolveSymbolToToken(
   symbol: string,
   exchange = "NSE",
-): Promise<{ exchange: string; token: string; symbol: string } | null> {
+): Promise<ResolvedToken | null> {
   const res = await resolveSymbolsToTokens([symbol], exchange);
   return res[symbol.toUpperCase()] || null;
 }

@@ -35,6 +35,25 @@ import { WatchlistErrorBoundary } from "@/features/watchlists/error-boundary";
 import { useWatchlistData } from "@/features/watchlists/hooks/use-watchlist-data";
 import { watchlistService } from "@/features/watchlists/services/watchlists";
 
+function Clock() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <span suppressHydrationWarning>
+      {time.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })}
+    </span>
+  );
+}
+
 export default function WatchlistPage() {
   const {
     uid,
@@ -432,11 +451,7 @@ export default function WatchlistPage() {
               ))}
             </div>
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {new Date().toLocaleTimeString("en-IN", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
+              <Clock />
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">

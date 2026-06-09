@@ -15,7 +15,6 @@ import { swrCache, TTL } from "../services/cache";
 import {
   resolveSymbolsToTokens,
   resolveSymbolToToken,
-  searchInstrumentsStream,
 } from "../utils/instrument-master";
 
 const router: Router = Router();
@@ -640,86 +639,21 @@ router.get(
         return;
       }
 
-      // Try multiple matching strategies using the streaming reader
-      let match: any = null;
+      // Try with the provided exchange first, then fall back to NSE/BSE
+      let match = await resolveSymbolToToken(symbol, exchange);
 
-      // Strategy 1: Exact match with exchange seg filter
-      await searchInstrumentsStream((inst) => {
-        if (inst.exch_seg?.toUpperCase() !== exchange) return false;
-        const candidates = [
-          inst.symbol?.toUpperCase(),
-          inst.name?.toUpperCase(),
-          inst.tradingsymbol?.toUpperCase(),
-        ];
-        const symbolUpper = symbol.toUpperCase();
-        const found = candidates.some(
-          (c) =>
-            c === symbolUpper ||
-            c === `${symbolUpper}-EQ` ||
-            (c && c.startsWith(`${symbolUpper}-`)),
-        );
-        if (found) {
-          match = inst;
-          return true; // Stop streaming early
-        }
-        return false;
-      });
-
-      // Strategy 2: Exact match without exchange seg filter
-      if (!match) {
-        logger.info(
-          `[symbol-token] Not found with exchange filter, trying without...`,
-        );
-        await searchInstrumentsStream((inst) => {
-          const candidates = [
-            inst.symbol?.toUpperCase(),
-            inst.name?.toUpperCase(),
-            inst.tradingsymbol?.toUpperCase(),
-          ];
-          const symbolUpper = symbol.toUpperCase();
-          const found = candidates.some(
-            (c) =>
-              c === symbolUpper ||
-              c === `${symbolUpper}-EQ` ||
-              (c && c.startsWith(`${symbolUpper}-`)),
-          );
-          if (found) {
-            match = inst;
-            return true; // Stop streaming early
-          }
-          return false;
-        });
+      if (!match && exchange !== "NSE") {
+        match = await resolveSymbolToToken(symbol, "NSE");
+      }
+      if (!match && exchange !== "BSE") {
+        match = await resolveSymbolToToken(symbol, "BSE");
       }
 
-      // Strategy 3: Partial matching
-      if (!match) {
-        logger.info(`[symbol-token] Trying partial match...`);
-        const symbolUpper = symbol.toUpperCase();
-        await searchInstrumentsStream((inst) => {
-          const candidates = [
-            inst.symbol?.toUpperCase(),
-            inst.name?.toUpperCase(),
-            inst.tradingsymbol?.toUpperCase(),
-          ];
-          const found = candidates.some(
-            (c) =>
-              c &&
-              (c.includes(symbolUpper) ||
-                symbolUpper.includes(c.replace(/-EQ$/, ""))),
-          );
-          if (found) {
-            match = inst;
-            return true; // Stop streaming early
-          }
-          return false;
-        });
-      }
-
-      if (match && match.token) {
+      if (match?.token) {
         res.json({
-          exchange: match.exch_seg?.toUpperCase() || exchange,
-          token: String(match.token),
-          symbol: match.symbol || match.name || symbol,
+          exchange: match.exchange,
+          token: match.token,
+          symbol: match.symbol || symbol,
         });
         return;
       }
