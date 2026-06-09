@@ -23,6 +23,9 @@ export class NotificationService {
     Object.values(AppEventType).forEach((eventType) => {
       appEvents.on(eventType, async (payload: AppEventPayload) => {
         try {
+          logger.info(
+            `[NotificationService] Processing event ${eventType} for user ${payload.userId}`,
+          );
           await this.createNotification(payload);
         } catch (error) {
           logger.error(

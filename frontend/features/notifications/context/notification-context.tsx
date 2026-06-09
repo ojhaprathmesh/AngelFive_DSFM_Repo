@@ -232,7 +232,8 @@ export function NotificationProvider({
         const { fetchEventSource } =
           await import("@microsoft/fetch-event-source");
 
-        await fetchEventSource("/api/notifications/stream", {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+        await fetchEventSource(`${backendUrl}/api/notifications/stream`, {
           method: "GET",
 
           headers: {

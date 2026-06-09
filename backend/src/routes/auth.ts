@@ -139,7 +139,6 @@ router.post(
         message: `Last login: ${new Date().toLocaleString()}`,
         category: "security",
         priority: "low",
-        dedupeKey: `login-${uid}-${new Date().toDateString()}`,
       });
 
       return res.json({
@@ -526,6 +525,16 @@ router.post(
 
       // Return the full profile the frontend needs
       const userProfile = await authService.getUserProfile(uid);
+
+      // Emit login event
+      appEvents.emit(AppEventType.AUTH_LOGIN, {
+        userId: uid,
+        type: AppEventType.AUTH_LOGIN,
+        title: "Welcome Back",
+        message: `Last login: ${new Date().toLocaleString()}`,
+        category: "security",
+        priority: "low",
+      });
 
       return res.json({
         status: "success",
